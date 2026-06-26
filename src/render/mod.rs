@@ -38,7 +38,7 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
     if let Some(ta) = toc_area {
         toc::render_toc_panel(f, app, ta);
     } else {
-        app.toc_list_area = Rect::default();
+        app.toc_list_area = None;
     }
 
     app.content_area = content_area;

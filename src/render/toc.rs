@@ -1,7 +1,7 @@
 use crate::{app::App, theme::app_theme};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
     Frame,
@@ -14,7 +14,7 @@ pub(super) fn render_toc_panel(f: &mut Frame, app: &mut App, area: Rect) {
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(0)])
         .split(area);
-    app.toc_list_area = toc_chunks[1];
+    app.toc_list_area = Some(toc_chunks[1]);
 
     f.render_widget(
         Paragraph::new("")
@@ -27,8 +27,18 @@ pub(super) fn render_toc_panel(f: &mut Frame, app: &mut App, area: Rect) {
             ),
         toc_chunks[0],
     );
+
+    let mut lines: Vec<Line<'static>> = app.toc_display_lines().to_vec();
+    if let Some(display_idx) = app.hovered_toc_idx {
+        let is_active = app.toc_display_entries().get(display_idx).copied() == app.toc_active_idx;
+        if !is_active {
+            if let Some(line) = lines.get_mut(display_idx) {
+                apply_toc_hover_style(line, theme.ui.toc_hover_fg);
+            }
+        }
+    }
     f.render_widget(
-        Paragraph::new(app.toc_display_lines().to_vec())
+        Paragraph::new(lines)
             .style(Style::default().bg(theme.ui.toc_bg))
             .block(
                 Block::default()
@@ -48,6 +58,12 @@ pub(super) fn render_toc_panel(f: &mut Frame, app: &mut App, area: Rect) {
             height: 1,
         },
     );
+}
+
+fn apply_toc_hover_style(line: &mut Line<'static>, hover_fg: Color) {
+    for span in &mut line.spans {
+        span.style = span.style.fg(hover_fg);
+    }
 }
 
 pub(crate) fn toc_header_line() -> Line<'static> {

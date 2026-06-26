@@ -115,6 +115,7 @@ theme_overrides!(UiThemeOverrides for UiTheme {
     status_error_bg,
     status_shortcut_fg,
     status_percent_fg,
+    toc_hover_fg,
     toc_header_fg,
     toc_active_bg,
     toc_inactive_bg,

@@ -1,5 +1,4 @@
 use super::App;
-use crate::markdown::toc::toc_levels;
 
 pub(super) enum CycleDirection {
     Forward,
@@ -61,6 +60,9 @@ impl App {
 
     pub(crate) fn toggle_toc(&mut self) {
         self.toc_visible = !self.toc_visible;
+        if !self.toc_visible {
+            self.hovered_toc_idx = None;
+        }
     }
 
     pub(crate) fn toggle_line_numbers(&mut self) {
@@ -68,16 +70,11 @@ impl App {
     }
 
     fn toc_group_for_numkey(&self, key: u8) -> Vec<usize> {
-        let levels = toc_levels(&self.toc);
         let mut group = Vec::new();
         let mut top_level_index = 0u8;
         let mut collecting = false;
 
-        for (idx, entry) in self.toc.iter().enumerate() {
-            let Some(display_level) = levels.as_ref().and_then(|l| l.display_level(entry.level))
-            else {
-                continue;
-            };
+        for (idx, _entry, display_level) in self.visible_toc_entries() {
             if display_level == 1 {
                 if collecting {
                     break;
@@ -95,18 +92,10 @@ impl App {
     }
 
     pub(crate) fn scroll_to_toc_display_line(&mut self, display_idx: usize) {
-        let levels = toc_levels(&self.toc);
-        let target = self
-            .toc
-            .iter()
-            .filter(|entry| {
-                levels
-                    .as_ref()
-                    .is_some_and(|l| l.display_level(entry.level).is_some())
-            })
-            .nth(display_idx);
-        if let Some(entry) = target {
-            self.scroll_to(entry.line);
+        if let Some(&entry_idx) = self.toc_display_entries.get(display_idx) {
+            if let Some(entry) = self.toc.get(entry_idx) {
+                self.scroll_to(entry.line);
+            }
         }
     }
 

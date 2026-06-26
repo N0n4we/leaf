@@ -60,6 +60,7 @@ pub(crate) struct UiTheme {
     pub(crate) status_error_bg: Color,
     pub(crate) status_shortcut_fg: Color,
     pub(crate) status_percent_fg: Color,
+    pub(crate) toc_hover_fg: Color,
     pub(crate) toc_header_fg: Color,
     pub(crate) toc_active_bg: Color,
     pub(crate) toc_inactive_bg: Color,

@@ -103,8 +103,10 @@ pub(crate) struct App {
     pub(super) reload_flash: Option<Instant>,
     highlighted_line_cache: Option<(usize, u64, Line<'static>)>,
     toc_display_lines: Vec<Line<'static>>,
+    toc_display_entries: Vec<usize>,
     toc_header_line: Line<'static>,
-    toc_active_idx: Option<usize>,
+    pub(crate) toc_active_idx: Option<usize>,
+    pub(crate) hovered_toc_idx: Option<usize>,
     status_line: Line<'static>,
     status_cache_key: Option<StatusCacheKey>,
     pub(super) help_open: bool,
@@ -116,7 +118,7 @@ pub(crate) struct App {
     pub(super) editor_picker: EditorPickerState,
     pub(super) render_width: usize,
     pub(crate) content_area: Rect,
-    pub(crate) toc_list_area: Rect,
+    pub(crate) toc_list_area: Option<Rect>,
     pub(crate) mouse_position: (u16, u16),
     pub(crate) scrollbar_dragging: bool,
     pub(super) editor_config: Option<String>,
@@ -228,8 +230,10 @@ impl App {
             reload_flash: None,
             highlighted_line_cache: None,
             toc_display_lines: Vec::new(),
+            toc_display_entries: Vec::new(),
             toc_header_line: toc_header_line(),
             toc_active_idx: None,
+            hovered_toc_idx: None,
             status_line: Line::default(),
             status_cache_key: None,
             help_open: false,
@@ -262,7 +266,7 @@ impl App {
             },
             render_width: 80,
             content_area: Rect::default(),
-            toc_list_area: Rect::default(),
+            toc_list_area: None,
             mouse_position: (0, 0),
             scrollbar_dragging: false,
             editor_config: None,
@@ -388,6 +392,18 @@ impl App {
         &self.toc_display_lines
     }
 
+    pub(crate) fn toc_display_entries(&self) -> &[usize] {
+        &self.toc_display_entries
+    }
+
+    pub(super) fn visible_toc_entries(&self) -> impl Iterator<Item = (usize, &TocEntry, u8)> {
+        let levels = toc_levels(&self.toc);
+        self.toc.iter().enumerate().filter_map(move |(idx, entry)| {
+            let display_level = levels.as_ref()?.display_level(entry.level)?;
+            Some((idx, entry, display_level))
+        })
+    }
+
     pub(crate) fn toc_header_line(&self) -> &Line<'static> {
         &self.toc_header_line
     }
@@ -406,38 +422,21 @@ impl App {
     }
 
     pub(crate) fn active_toc_index(&self) -> Option<usize> {
-        let levels = toc_levels(&self.toc);
-        let is_visible = |entry: &&TocEntry| {
-            levels
-                .as_ref()
-                .is_some_and(|l| l.display_level(entry.level).is_some())
-        };
-
         let mut first_visible = None;
         let mut active = None;
-        for (idx, entry) in self
-            .toc
-            .iter()
-            .enumerate()
-            .filter(|(_, entry)| is_visible(entry))
-        {
+        let mut last_visible = None;
+        for (idx, entry, _) in self.visible_toc_entries() {
             if first_visible.is_none() {
                 first_visible = Some((idx, entry.line));
             }
-            if entry.line > self.scroll {
-                break;
+            last_visible = Some(idx);
+            if entry.line <= self.scroll {
+                active = Some(idx);
             }
-            active = Some(idx);
         }
 
         let max = self.max_scroll();
         if max > 0 && self.scroll >= max {
-            let last_visible = self
-                .toc
-                .iter()
-                .enumerate()
-                .rfind(|(_, entry)| is_visible(entry))
-                .map(|(idx, _)| idx);
             active = last_visible;
         }
 
@@ -469,7 +468,6 @@ impl App {
     }
 
     pub(crate) fn refresh_toc_cache(&mut self) {
-        let levels = toc_levels(&self.toc);
         let active_idx = self.active_toc_index();
         if self.toc_active_idx == active_idx && !self.toc_display_lines.is_empty() {
             return;
@@ -477,24 +475,24 @@ impl App {
 
         self.toc_active_idx = active_idx;
         let mut top_level_index = 0usize;
-        self.toc_display_lines = self
-            .toc
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, entry)| {
-                let display_level = levels.as_ref()?.display_level(entry.level)?;
-                let line = build_toc_line_with_index(
-                    entry,
-                    display_level,
-                    (display_level == 1).then_some(top_level_index),
-                    active_idx == Some(idx),
-                );
-                if display_level == 1 {
-                    top_level_index += 1;
-                }
-                Some(line)
-            })
-            .collect();
+        let mut lines: Vec<Line<'static>> = Vec::new();
+        let mut entries: Vec<usize> = Vec::new();
+        for (idx, entry, display_level) in self.visible_toc_entries() {
+            let line = build_toc_line_with_index(
+                entry,
+                display_level,
+                (display_level == 1).then_some(top_level_index),
+                active_idx == Some(idx),
+            );
+            if display_level == 1 {
+                top_level_index += 1;
+            }
+            lines.push(line);
+            entries.push(idx);
+        }
+        debug_assert_eq!(lines.len(), entries.len());
+        self.toc_display_lines = lines;
+        self.toc_display_entries = entries;
     }
 
     pub(crate) fn refresh_status_cache(&mut self, pct: u16) {
@@ -557,6 +555,7 @@ impl App {
     pub(crate) fn refresh_static_caches(&mut self) {
         self.toc_active_idx = None;
         self.toc_display_lines.clear();
+        self.toc_display_entries.clear();
         self.refresh_toc_cache();
         self.status_cache_key = None;
     }
