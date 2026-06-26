@@ -181,6 +181,12 @@ editor = 'nano +{$line}'
 editor = 'nvim +{$line} +"normal! zz"'
 ```
 
+For further customization, `{$path}` is also available for the file path:
+
+```toml
+editor = 'code -g {$path}:{$line}'
+```
+
 Without `{$line}`, the editor opens at the top of the file.
 
 ## Extra Files

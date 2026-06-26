@@ -148,7 +148,7 @@ fn open_config_in_editor(path: &Path) -> anyhow::Result<()> {
 }
 
 fn launch_editor(editor: &str, path: &Path) {
-    let expanded = crate::editor::expand_line_placeholder(editor, 1);
+    let expanded = crate::editor::expand_editor_placeholders(editor, 1, path);
     if try_launch_editor(&expanded, path) {
         return;
     }

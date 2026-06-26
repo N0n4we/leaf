@@ -2,9 +2,12 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 const EDITOR_LINE_PLACEHOLDER: &str = "{$line}";
+const EDITOR_PATH_PLACEHOLDER: &str = "{$path}";
 
-pub(crate) fn expand_line_placeholder(editor_cmd: &str, line: usize) -> String {
-    editor_cmd.replace(EDITOR_LINE_PLACEHOLDER, &line.to_string())
+pub(crate) fn expand_editor_placeholders(editor_cmd: &str, line: usize, path: &Path) -> String {
+    editor_cmd
+        .replace(EDITOR_LINE_PLACEHOLDER, &line.to_string())
+        .replace(EDITOR_PATH_PLACEHOLDER, &path.display().to_string())
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

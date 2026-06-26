@@ -261,33 +261,53 @@ fn resolve_editor_config_takes_priority_over_fallback() {
 }
 
 #[test]
-fn expand_line_placeholder_no_placeholder_returns_unchanged() {
-    let result = expand_line_placeholder("nvim", 42);
+fn expand_editor_placeholders_no_placeholder_returns_unchanged() {
+    let result = expand_editor_placeholders("nvim", 42, Path::new(""));
     assert_eq!(result, "nvim");
 }
 
 #[test]
-fn expand_line_placeholder_substitutes_single_occurrence() {
-    let result = expand_line_placeholder("nvim +{$line}", 42);
+fn expand_editor_placeholders_substitutes_single_occurrence() {
+    let result = expand_editor_placeholders("nvim +{$line}", 42, Path::new(""));
     assert_eq!(result, "nvim +42");
 }
 
 #[test]
-fn expand_line_placeholder_substitutes_all_occurrences() {
-    let result = expand_line_placeholder("code -g {$line}:{$line}", 7);
+fn expand_editor_placeholders_substitutes_all_occurrences() {
+    let result = expand_editor_placeholders("code -g {$line}:{$line}", 7, Path::new(""));
     assert_eq!(result, "code -g 7:7");
 }
 
 #[test]
-fn expand_line_placeholder_preserves_surrounding_chars() {
-    let result = expand_line_placeholder(r#"nvim +{$line} +"normal! zz""#, 123);
+fn expand_editor_placeholders_preserves_surrounding_chars() {
+    let result = expand_editor_placeholders(r#"nvim +{$line} +"normal! zz""#, 123, Path::new(""));
     assert_eq!(result, r#"nvim +123 +"normal! zz""#);
 }
 
 #[test]
-fn expand_line_placeholder_ignores_unsupported_variants() {
-    let result = expand_line_placeholder("nvim +${line} +{line} +{$LINE}", 5);
+fn expand_editor_placeholders_ignores_unsupported_variants() {
+    let result = expand_editor_placeholders("nvim +${line} +{line} +{$LINE}", 5, Path::new(""));
     assert_eq!(result, "nvim +${line} +{line} +{$LINE}");
+}
+
+#[test]
+fn expand_editor_placeholders_line_and_path() {
+    let result = expand_editor_placeholders("code -g {$path}:{$line}", 0, Path::new("file.rs"));
+    assert_eq!(result, "code -g file.rs:0");
+}
+
+#[test]
+fn expand_editor_placeholders_multiple_occurrences() {
+    let result =
+        expand_editor_placeholders("code {$path} && echo {$path}", 1, Path::new("test.md"));
+    assert_eq!(result, "code test.md && echo test.md");
+}
+
+#[test]
+fn expand_editor_placeholders_full_path() {
+    let result =
+        expand_editor_placeholders("code -g {$path}:{$line}", 8, Path::new("/tmp/file.rs"));
+    assert_eq!(result, "code -g /tmp/file.rs:8");
 }
 
 #[test]
