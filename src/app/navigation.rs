@@ -94,6 +94,22 @@ impl App {
         group
     }
 
+    pub(crate) fn scroll_to_toc_display_line(&mut self, display_idx: usize) {
+        let levels = toc_levels(&self.toc);
+        let target = self
+            .toc
+            .iter()
+            .filter(|entry| {
+                levels
+                    .as_ref()
+                    .is_some_and(|l| l.display_level(entry.level).is_some())
+            })
+            .nth(display_idx);
+        if let Some(entry) = target {
+            self.scroll_to(entry.line);
+        }
+    }
+
     pub(crate) fn cycle_numkey(&mut self, key: u8) {
         let group = self.toc_group_for_numkey(key);
         if group.is_empty() {

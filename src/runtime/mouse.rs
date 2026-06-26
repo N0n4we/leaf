@@ -87,6 +87,15 @@ pub(super) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) -> bool {
                     .unwrap_or(false);
                 app.last_click = Some((mouse.column, mouse.row, now));
 
+                if app.is_toc_visible() && app.has_toc() {
+                    if let Some(display_idx) =
+                        toc_click_display_index(app.toc_list_area, mouse.column, mouse.row)
+                    {
+                        app.scroll_to_toc_display_line(display_idx);
+                        return true;
+                    }
+                }
+
                 let gutter = app.line_number_gutter_width() as u16;
                 let link_hit = app.link_at_position(
                     mouse.column,
@@ -271,6 +280,17 @@ fn try_open_editor(
         }
         Err(_) => Ok(None),
     }
+}
+
+fn toc_click_display_index(toc_list_area: Rect, col: u16, row: u16) -> Option<usize> {
+    let inner = Rect {
+        width: toc_list_area.width.saturating_sub(1),
+        ..toc_list_area
+    };
+    if !is_in_rect(inner, col, row) {
+        return None;
+    }
+    Some((row - toc_list_area.y) as usize)
 }
 
 pub(super) fn is_on_scrollbar(area: Rect, col: u16, row: u16) -> bool {
