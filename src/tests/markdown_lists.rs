@@ -12,7 +12,8 @@ fn loose_list_items_keep_their_markers() {
         &theme,
         &test_md_theme(),
         false,
-    );
+    )
+    .into();
     let rendered: Vec<String> = lines.iter().map(line_plain_text).collect();
 
     assert!(rendered.iter().any(|line| line.contains("• first")));
@@ -28,7 +29,8 @@ fn ordered_lists_render_numeric_markers() {
         &theme,
         &test_md_theme(),
         false,
-    );
+    )
+    .into();
     let rendered: Vec<String> = lines.iter().map(line_plain_text).collect();
 
     assert!(rendered.iter().any(|line| line.contains("3. third")));
@@ -44,7 +46,8 @@ fn multiline_list_items_keep_marker_only_on_first_line() {
         &theme,
         &test_md_theme(),
         false,
-    );
+    )
+    .into();
     let rendered: Vec<String> = lines.iter().map(line_plain_text).collect();
 
     let first = rendered
@@ -65,7 +68,7 @@ fn multiline_list_items_keep_marker_only_on_first_line() {
 fn ordered_lists_preserve_non_default_start_numbers() {
     let (ss, theme) = test_assets();
     let (lines, _, _, _) =
-        parse_markdown("7. seven\n8. eight\n", &ss, &theme, &test_md_theme(), false);
+        parse_markdown("7. seven\n8. eight\n", &ss, &theme, &test_md_theme(), false).into();
     let rendered: Vec<String> = lines.iter().map(line_plain_text).collect();
 
     assert!(rendered.iter().any(|line| line.contains("7. seven")));
@@ -76,7 +79,7 @@ fn ordered_lists_preserve_non_default_start_numbers() {
 fn loose_list_items_render_expected_lines() {
     let (ss, theme) = test_assets();
     let src = "- first loose item\n\n- second loose item after a blank line\n\n- third loose item\n\n  continuation paragraph\n";
-    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false);
+    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     assert_eq!(
@@ -94,7 +97,7 @@ fn loose_list_items_render_expected_lines() {
 fn ordered_loose_lists_render_expected_lines() {
     let (ss, theme) = test_assets();
     let src = "7. seventh item\n\n8. eighth item\n\n   continuation paragraph\n";
-    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false);
+    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     assert_eq!(
@@ -116,7 +119,8 @@ fn ordered_lists_render_expected_lines() {
         &theme,
         &test_md_theme(),
         false,
-    );
+    )
+    .into();
     let rendered = rendered_non_empty_lines(&lines);
 
     assert_eq!(rendered, vec!["3. third item", "4. fourth item"]);
@@ -131,7 +135,8 @@ fn paragraph_and_following_list_have_no_blank_gap() {
         &theme,
         &test_md_theme(),
         false,
-    );
+    )
+    .into();
     let rendered: Vec<String> = lines.iter().map(line_plain_text).collect();
     let intro_idx = rendered
         .iter()
@@ -145,7 +150,8 @@ fn paragraph_and_following_list_have_no_blank_gap() {
 fn wrapped_list_items_align_continuation_under_text() {
     let (ss, theme) = test_assets();
     let src = "- First item with enough text to wrap when the terminal is narrow and show continuation alignment.\n8. Eighth item with enough text to wrap and keep numeric alignment readable.\n";
-    let (lines, _, _, _) = parse_markdown_with_width(src, &ss, &theme, 36, &test_md_theme(), false);
+    let (lines, _, _, _) =
+        parse_markdown_with_width(src, &ss, &theme, 36, &test_md_theme(), false).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     assert!(rendered.iter().any(|line| line.starts_with("• First item")));
@@ -164,7 +170,7 @@ fn wrapped_list_items_align_continuation_under_text() {
 fn tight_nested_list_separates_parent_and_children() {
     let (ss, theme) = test_assets();
     let src = "- parent\n  - child 1\n  - child 2\n";
-    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false);
+    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     assert_eq!(rendered, vec!["• parent", "  ◦ child 1", "  ◦ child 2"]);
@@ -174,7 +180,7 @@ fn tight_nested_list_separates_parent_and_children() {
 fn tight_nested_list_three_levels_uses_correct_markers() {
     let (ss, theme) = test_assets();
     let src = "- level 1\n  - level 2\n    - level 3\n";
-    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false);
+    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     assert_eq!(rendered, vec!["• level 1", "  ◦ level 2", "    ▸ level 3"]);
@@ -184,7 +190,7 @@ fn tight_nested_list_three_levels_uses_correct_markers() {
 fn tight_nested_list_unordered_parent_with_ordered_children() {
     let (ss, theme) = test_assets();
     let src = "- parent\n  1. first\n  2. second\n";
-    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false);
+    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     assert_eq!(rendered, vec!["• parent", "  1. first", "  2. second"]);
@@ -194,7 +200,7 @@ fn tight_nested_list_unordered_parent_with_ordered_children() {
 fn tight_nested_list_multiline_parent_with_softbreak() {
     let (ss, theme) = test_assets();
     let src = "- parent line one\n  parent line two\n  - child\n";
-    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false);
+    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     assert!(rendered.iter().any(|line| line == "• parent line one"));
@@ -209,7 +215,7 @@ fn wrapped_list_inline_code_keeps_left_padding_in_rendered_line() {
     let (ss, theme) = test_assets();
     let source = "- `leaf --theme ocean README.md` exercises wrapping inside a list item.\n";
     let (lines, _, _, _) =
-        parse_markdown_with_width(source, &ss, &theme, 22, &test_md_theme(), false);
+        parse_markdown_with_width(source, &ss, &theme, 22, &test_md_theme(), false).into();
 
     let target = lines
         .iter()
@@ -236,7 +242,7 @@ fn task_markers_have_uniform_width() {
 fn code_block_inside_list_item_is_indented_and_has_no_blank_gap_before() {
     let (ss, theme) = test_assets();
     let md = "To put a code block within a list item, the code block needs\nto be indented *twice* -- 8 spaces or two tabs:\n\n*   A list item with a code block:\n\n        <code goes here>\n";
-    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false);
+    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     let item_idx = rendered

@@ -220,13 +220,40 @@ fn push_text_event(
     push_custom_marker_spans(text, CUSTOM_MARKERS, fallback, theme, spans);
 }
 
+pub(crate) struct ParseResult {
+    pub(crate) lines: Vec<Line<'static>>,
+    pub(crate) toc: Vec<TocEntry>,
+    pub(crate) link_spans: Vec<LinkSpan>,
+    pub(crate) line_number_map: Vec<usize>,
+    pub(crate) source_line_map: Vec<usize>,
+}
+
+impl ParseResult {
+    pub(crate) fn preview(lines: Vec<Line<'static>>, toc: Vec<TocEntry>) -> Self {
+        Self {
+            lines,
+            toc,
+            link_spans: Vec::new(),
+            line_number_map: Vec::new(),
+            source_line_map: Vec::new(),
+        }
+    }
+}
+
+#[cfg(test)]
+impl From<ParseResult> for (Vec<Line<'static>>, Vec<TocEntry>, Vec<LinkSpan>, Vec<usize>) {
+    fn from(p: ParseResult) -> Self {
+        (p.lines, p.toc, p.link_spans, p.line_number_map)
+    }
+}
+
 pub(crate) fn parse_markdown(
     src: &str,
     ss: &syntect::parsing::SyntaxSet,
     theme: &syntect::highlighting::Theme,
     md_theme: &MarkdownTheme,
     file_mode: bool,
-) -> (Vec<Line<'static>>, Vec<TocEntry>, Vec<LinkSpan>, Vec<bool>) {
+) -> ParseResult {
     parse_markdown_with_width(src, ss, theme, DEFAULT_RENDER_WIDTH, md_theme, file_mode)
 }
 
@@ -237,16 +264,21 @@ pub(crate) fn parse_markdown_with_width(
     render_width: usize,
     theme_colors: &MarkdownTheme,
     file_mode: bool,
-) -> (Vec<Line<'static>>, Vec<TocEntry>, Vec<LinkSpan>, Vec<bool>) {
+) -> ParseResult {
+    let original_src = src;
     let (src, fm_pairs) = frontmatter::extract_frontmatter(src);
+    let fm_byte_count = original_src.len() - src.len();
+    let fm_line_count = original_src[..fm_byte_count].matches('\n').count();
+    let file_mode_offset = if file_mode { 1usize } else { 0 };
+
     let mut lines: Vec<Line<'static>> = Vec::new();
-    let mut block_starts: Vec<bool> = Vec::new();
+    let mut state = LineMapState::new();
 
     if let Some(ref pairs) = fm_pairs {
         let vertical = frontmatter::is_vertical(pairs);
         let tb = TableBuf::from_key_value_pairs(pairs, vertical);
         lines.extend(tb.render(render_width));
-        mark_all_new(&mut block_starts, lines.len());
+        state.mark_all_new(lines.len());
     }
     let mut toc: Vec<TocEntry> = Vec::new();
 
@@ -265,16 +297,21 @@ pub(crate) fn parse_markdown_with_width(
     let mut blockquote_color: Option<Color> = None;
 
     let normalized = normalize_code_fences(src);
-    for ev in Parser::new_ext(&normalized, Options::all()) {
-        block_starts.truncate(lines.len());
+    let line_starts = compute_line_starts(&normalized);
+    for (ev, range) in Parser::new_ext(&normalized, Options::all()).into_offset_iter() {
+        state.truncate(lines.len());
         let before = lines.len();
+        let raw_line = byte_to_line(&line_starts, range.start);
+        state.current_src_line = (raw_line + fm_line_count)
+            .saturating_sub(file_mode_offset)
+            .max(1);
         if table.is_some()
             && handle_table_event(&mut table, &ev, &mut lines, render_width, &mut link_urls)
         {
             if lines.len() > before {
-                mark_table_lines(&mut block_starts, lines.len(), &lines);
+                state.mark_table_lines(lines.len(), &lines);
             } else {
-                mark_all_new(&mut block_starts, lines.len());
+                state.mark_all_new(lines.len());
             }
             continue;
         }
@@ -505,58 +542,110 @@ pub(crate) fn parse_markdown_with_width(
             _ => {}
         }
         if wraps && lines.len() > before {
-            mark_wrapped(&mut block_starts, before, lines.len(), &lines);
+            state.mark_wrapped(before, lines.len(), &lines);
         } else {
-            mark_all_new(&mut block_starts, lines.len());
+            state.mark_all_new(lines.len());
         }
     }
 
     if !spans.is_empty() {
         lines.push(Line::from(spans));
-        mark_all_new(&mut block_starts, lines.len());
+        state.mark_all_new(lines.len());
     }
     for _ in 0..5 {
         lines.push(Line::from(""));
     }
-    mark_all_new(&mut block_starts, lines.len());
+    state.mark_all_new(lines.len());
     let link_spans = build_link_spans(&lines, &link_urls, theme_colors);
-    (lines, normalize_toc(toc), link_spans, block_starts)
+    ParseResult {
+        lines,
+        toc: normalize_toc(toc),
+        link_spans,
+        line_number_map: state.line_number_map,
+        source_line_map: state.source_line_map,
+    }
 }
 
 fn is_empty_line(line: &Line) -> bool {
     line.spans.is_empty() || (line.spans.len() == 1 && line.spans[0].content.is_empty())
 }
 
-fn mark_all_new(flags: &mut Vec<bool>, to: usize) {
-    flags.resize(flags.len().max(to), true);
+struct LineMapState {
+    line_number_map: Vec<usize>,
+    source_line_map: Vec<usize>,
+    logical: usize,
+    current_src_line: usize,
 }
 
-fn mark_wrapped(flags: &mut Vec<bool>, from: usize, to: usize, lines: &[Line<'_>]) {
-    for (i, line) in lines.iter().enumerate().take(to).skip(flags.len()) {
-        let is_new = i == from
-            || is_empty_line(line)
-            || line.spans.iter().any(|s| {
+impl LineMapState {
+    fn new() -> Self {
+        Self {
+            line_number_map: Vec::new(),
+            source_line_map: Vec::new(),
+            logical: 0,
+            current_src_line: 1,
+        }
+    }
+
+    fn push(&mut self, is_new: bool) {
+        if is_new {
+            self.logical += 1;
+        }
+        self.line_number_map.push(self.logical);
+        self.source_line_map.push(self.current_src_line);
+    }
+
+    fn mark_all_new(&mut self, to: usize) {
+        while self.line_number_map.len() < to {
+            self.push(true);
+        }
+    }
+
+    fn mark_wrapped(&mut self, from: usize, to: usize, lines: &[Line<'_>]) {
+        let start = self.line_number_map.len();
+        for (i, line) in lines.iter().enumerate().take(to).skip(start) {
+            let is_new = i == from
+                || is_empty_line(line)
+                || line.spans.iter().any(|s| {
+                    let c = s.content.as_ref();
+                    c.starts_with('┌')
+                        || c.starts_with('└')
+                        || c.starts_with('╔')
+                        || c.starts_with('╚')
+                        || (c.starts_with('│')
+                            && c.ends_with('│')
+                            && c.chars().any(|ch| ch.is_ascii_digit()))
+                });
+            self.push(is_new);
+        }
+    }
+
+    fn mark_table_lines(&mut self, to: usize, lines: &[Line<'_>]) {
+        let mut prev_border = true;
+        let start = self.line_number_map.len();
+        for line in lines.iter().take(to).skip(start) {
+            let border = line.spans.iter().any(|s| {
                 let c = s.content.as_ref();
-                c.starts_with('┌')
-                    || c.starts_with('└')
-                    || c.starts_with('╔')
-                    || c.starts_with('╚')
-                    || (c.starts_with('│')
-                        && c.ends_with('│')
-                        && c.chars().any(|ch| ch.is_ascii_digit()))
+                c.starts_with('┌') || c.starts_with('├') || c.starts_with('╞') || c.starts_with('└')
             });
-        flags.push(is_new);
+            self.push(border || is_empty_line(line) || prev_border);
+            prev_border = border;
+        }
+    }
+
+    fn truncate(&mut self, to: usize) {
+        self.line_number_map.truncate(to);
+        self.source_line_map.truncate(to);
     }
 }
 
-fn mark_table_lines(flags: &mut Vec<bool>, to: usize, lines: &[Line<'_>]) {
-    let mut prev_border = true;
-    for line in lines.iter().take(to).skip(flags.len()) {
-        let border = line.spans.iter().any(|s| {
-            let c = s.content.as_ref();
-            c.starts_with('┌') || c.starts_with('├') || c.starts_with('╞') || c.starts_with('└')
-        });
-        flags.push(border || is_empty_line(line) || prev_border);
-        prev_border = border;
-    }
+fn compute_line_starts(s: &str) -> Vec<usize> {
+    let mut starts = Vec::with_capacity(s.len() / 32 + 1);
+    starts.push(0);
+    starts.extend(s.match_indices('\n').map(|(i, _)| i + 1));
+    starts
+}
+
+fn byte_to_line(line_starts: &[usize], offset: usize) -> usize {
+    line_starts.partition_point(|&s| s <= offset).max(1)
 }
