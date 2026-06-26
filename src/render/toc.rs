@@ -14,6 +14,7 @@ pub(super) fn render_toc_panel(f: &mut Frame, app: &mut App, area: Rect) {
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(0)])
         .split(area);
+    app.toc_list_area = toc_chunks[1];
 
     f.render_widget(
         Paragraph::new("")
