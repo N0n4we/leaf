@@ -1,6 +1,6 @@
 use super::App;
 use crate::markdown::{
-    hash_file_contents, hash_str, parse_markdown_with_width, read_file_state, LinkSpan,
+    hash_file_contents, hash_str, parse_markdown_with_width, read_file_state, ParseResult,
 };
 use std::{
     path::PathBuf,
@@ -23,15 +23,17 @@ pub(crate) enum FileChange {
 }
 
 impl App {
-    pub(crate) fn replace_content(
-        &mut self,
-        lines: Vec<ratatui::text::Line<'static>>,
-        toc: Vec<crate::markdown::toc::TocEntry>,
-        link_spans: Vec<LinkSpan>,
-        block_starts: Vec<bool>,
-    ) {
+    pub(crate) fn replace_content(&mut self, parsed: ParseResult) {
         use crate::markdown::build_searchable_lines;
         use crate::render::toc_header_line;
+
+        let ParseResult {
+            lines,
+            toc,
+            link_spans,
+            line_number_map,
+            source_line_map,
+        } = parsed;
 
         self.plain_lines = build_searchable_lines(&lines)
             .into_iter()
@@ -43,7 +45,7 @@ impl App {
         self.toc_header_line = toc_header_line();
         self.link_spans_by_line = super::links::link_spans_to_map(link_spans);
         self.hovered_link = None;
-        self.line_number_rebuild_map(&block_starts);
+        self.set_line_maps(line_number_map, source_line_map);
         self.refresh_static_caches();
     }
 
@@ -92,7 +94,7 @@ impl App {
         self.file_mode = is_code_file;
         let theme = current_syntect_theme(themes);
         let at = app_theme();
-        let (lines, toc, link_spans, block_starts) = parse_markdown_with_width(
+        let parsed = parse_markdown_with_width(
             &src,
             ss,
             theme,
@@ -121,8 +123,8 @@ impl App {
         self.reset_search_state();
         self.clear_active_goto_line();
         self.invalidate_theme_preview_cache();
-        self.store_current_theme_preview_from(&lines, &toc);
-        self.replace_content(lines, toc, link_spans, block_starts);
+        self.store_current_theme_preview_from(&parsed.lines, &parsed.toc);
+        self.replace_content(parsed);
         true
     }
 
@@ -130,7 +132,7 @@ impl App {
         let theme = current_syntect_theme(themes);
         let at = app_theme();
         let old_total = self.total();
-        let (new_lines, new_toc, link_spans, block_starts) = parse_markdown_with_width(
+        let parsed = parse_markdown_with_width(
             &self.source,
             ss,
             theme,
@@ -138,7 +140,7 @@ impl App {
             &at.markdown,
             self.file_mode,
         );
-        let new_total = new_lines.len();
+        let new_total = parsed.lines.len();
 
         if old_total > 0 {
             self.scroll = ((self.scroll as f64 / old_total as f64) * new_total as f64) as usize;
@@ -147,8 +149,8 @@ impl App {
         }
 
         self.invalidate_theme_preview_cache();
-        self.store_current_theme_preview_from(&new_lines, &new_toc);
-        self.replace_content(new_lines, new_toc, link_spans, block_starts);
+        self.store_current_theme_preview_from(&parsed.lines, &parsed.toc);
+        self.replace_content(parsed);
         self.goto_line.target = None;
         self.goto_line.error = false;
         if !self.search.query.is_empty() && !self.search.mode {

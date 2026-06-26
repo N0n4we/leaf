@@ -1,6 +1,12 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+const EDITOR_LINE_PLACEHOLDER: &str = "{$line}";
+
+pub(crate) fn expand_line_placeholder(editor_cmd: &str, line: usize) -> String {
+    editor_cmd.replace(EDITOR_LINE_PLACEHOLDER, &line.to_string())
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum EditorKind {
     Terminal,
@@ -24,7 +30,30 @@ pub(crate) fn classify(editor_cmd: &str) -> EditorKind {
     }
 }
 
-pub(crate) fn split_editor_cmd(cmd: &str) -> (&str, Vec<&str>) {
+fn tokenize_args(s: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut in_single = false;
+    let mut in_double = false;
+    for c in s.chars() {
+        match c {
+            '\'' if !in_double => in_single = !in_single,
+            '"' if !in_single => in_double = !in_double,
+            c if c.is_whitespace() && !in_single && !in_double => {
+                if !current.is_empty() {
+                    tokens.push(std::mem::take(&mut current));
+                }
+            }
+            c => current.push(c),
+        }
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+    tokens
+}
+
+pub(crate) fn split_editor_cmd(cmd: &str) -> (&str, Vec<String>) {
     let trimmed = cmd.trim();
 
     for quote in ['"', '\''] {
@@ -32,12 +61,7 @@ pub(crate) fn split_editor_cmd(cmd: &str) -> (&str, Vec<&str>) {
             if let Some(end) = trimmed[1..].find(quote) {
                 let bin = &trimmed[1..=end];
                 let rest = trimmed[end + 2..].trim();
-                let args = if rest.is_empty() {
-                    vec![]
-                } else {
-                    rest.split_whitespace().collect()
-                };
-                return (bin, args);
+                return (bin, tokenize_args(rest));
             }
         }
     }
@@ -59,14 +83,17 @@ pub(crate) fn split_editor_cmd(cmd: &str) -> (&str, Vec<&str>) {
             trimmed.len()
         };
         let bin = trimmed[..bin_end].trim_end();
-        let args = parts[split_at..].to_vec();
+        let args: Vec<String> = parts[split_at..]
+            .iter()
+            .copied()
+            .map(str::to_string)
+            .collect();
         return (bin, args);
     }
 
-    let mut parts = trimmed.split_whitespace();
-    let bin = parts.next().unwrap_or(trimmed);
-    let args: Vec<&str> = parts.collect();
-    (bin, args)
+    let bin = trimmed.split_whitespace().next().unwrap_or(trimmed);
+    let rest = &trimmed[bin.len()..];
+    (bin, tokenize_args(rest))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

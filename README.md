@@ -170,6 +170,19 @@ leaf --config reset
 
 All settings are optional. CLI arguments always take priority. See [`config.toml`](config.toml) for details.
 
+## Open in Editor
+
+Press `Ctrl+E` to open the current file in the configured editor.
+
+Use `{$line}` in `editor` to open at the line currently visible in **leaf**:
+
+```toml
+editor = 'nano +{$line}'
+editor = 'nvim +{$line} +"normal! zz"'
+```
+
+Without `{$line}`, the editor opens at the top of the file.
+
 ## Extra Files
 
 Non-Markdown files can be listed in the file picker by adding their extensions to `config.toml`:

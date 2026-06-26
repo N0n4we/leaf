@@ -259,3 +259,61 @@ fn resolve_editor_config_takes_priority_over_fallback() {
     let result = resolve_editor(None, Some("hx"));
     assert_eq!(result, "hx");
 }
+
+#[test]
+fn expand_line_placeholder_no_placeholder_returns_unchanged() {
+    let result = expand_line_placeholder("nvim", 42);
+    assert_eq!(result, "nvim");
+}
+
+#[test]
+fn expand_line_placeholder_substitutes_single_occurrence() {
+    let result = expand_line_placeholder("nvim +{$line}", 42);
+    assert_eq!(result, "nvim +42");
+}
+
+#[test]
+fn expand_line_placeholder_substitutes_all_occurrences() {
+    let result = expand_line_placeholder("code -g {$line}:{$line}", 7);
+    assert_eq!(result, "code -g 7:7");
+}
+
+#[test]
+fn expand_line_placeholder_preserves_surrounding_chars() {
+    let result = expand_line_placeholder(r#"nvim +{$line} +"normal! zz""#, 123);
+    assert_eq!(result, r#"nvim +123 +"normal! zz""#);
+}
+
+#[test]
+fn expand_line_placeholder_ignores_unsupported_variants() {
+    let result = expand_line_placeholder("nvim +${line} +{line} +{$LINE}", 5);
+    assert_eq!(result, "nvim +${line} +{line} +{$LINE}");
+}
+
+#[test]
+fn split_editor_cmd_quoted_arg_with_space() {
+    let (bin, args) = split_editor_cmd(r#"nvim +123 +"normal! zz""#);
+    assert_eq!(bin, "nvim");
+    assert_eq!(args, vec!["+123", "+normal! zz"]);
+}
+
+#[test]
+fn split_editor_cmd_single_quoted_arg_with_space() {
+    let (bin, args) = split_editor_cmd("nvim '+normal! zz'");
+    assert_eq!(bin, "nvim");
+    assert_eq!(args, vec!["+normal! zz"]);
+}
+
+#[test]
+fn split_editor_cmd_double_quote_inside_single_quotes() {
+    let (bin, args) = split_editor_cmd(r#"nvim '"foo"'"#);
+    assert_eq!(bin, "nvim");
+    assert_eq!(args, vec![r#""foo""#]);
+}
+
+#[test]
+fn split_editor_cmd_unclosed_quote_is_graceful() {
+    let (bin, args) = split_editor_cmd(r#"nvim +"abc"#);
+    assert_eq!(bin, "nvim");
+    assert_eq!(args, vec!["+abc"]);
+}

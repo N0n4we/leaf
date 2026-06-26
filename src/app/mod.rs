@@ -86,6 +86,7 @@ pub(crate) struct App {
     pub(super) toc: Vec<TocEntry>,
     toc_visible: bool,
     line_number_map: Vec<usize>,
+    source_line_map: Vec<usize>,
     line_number_visible: bool,
     pub(super) search: SearchState,
     pub(super) goto_line: GotoLineState,
@@ -199,6 +200,7 @@ impl App {
             toc,
             toc_visible: false,
             line_number_map: Vec::new(),
+            source_line_map: Vec::new(),
             line_number_visible: false,
             search: SearchState {
                 mode: false,
@@ -352,16 +354,17 @@ impl App {
         }
     }
 
-    pub(crate) fn line_number_rebuild_map(&mut self, new_line_flags: &[bool]) {
-        let mut map = Vec::with_capacity(new_line_flags.len());
-        let mut logical = 0usize;
-        for is_new in new_line_flags {
-            if *is_new {
-                logical += 1;
-            }
-            map.push(logical);
-        }
-        self.line_number_map = map;
+    pub(crate) fn set_line_maps(
+        &mut self,
+        line_number_map: Vec<usize>,
+        source_line_map: Vec<usize>,
+    ) {
+        self.line_number_map = line_number_map;
+        self.source_line_map = source_line_map;
+    }
+
+    pub(crate) fn source_line_at(&self, idx: usize) -> usize {
+        self.source_line_map.get(idx).copied().unwrap_or(1)
     }
 
     pub(crate) fn has_toc(&self) -> bool {

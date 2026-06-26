@@ -36,8 +36,8 @@ const MAX_STDIN_BYTES: usize = 8 * 1024 * 1024;
 pub(crate) use config::{config_path, LeafConfig};
 #[cfg(test)]
 pub(crate) use editor::{
-    binary_name, classify, resolve_editor, selection_modifier_label, split_editor_cmd,
-    try_new_tab_command, EditorKind, TerminalEmulator,
+    binary_name, classify, expand_line_placeholder, resolve_editor, selection_modifier_label,
+    split_editor_cmd, try_new_tab_command, EditorKind, TerminalEmulator,
 };
 #[cfg(test)]
 pub(crate) use markdown::toc::{normalize_toc, toc_levels, TocEntry};
@@ -293,14 +293,15 @@ fn main() -> Result<()> {
         let format = inline::resolve_format(spec, is_tty);
 
         let at = app_theme();
-        let (mut lines, _, _, _) =
+        let mut parsed =
             parse_markdown_with_width(&src, &ss, &theme, width, &at.markdown, file_mode);
 
-        while lines.last().is_some_and(|l| {
+        while parsed.lines.last().is_some_and(|l| {
             l.spans.is_empty() || l.spans.iter().all(|s| s.content.trim().is_empty())
         }) {
-            lines.pop();
+            parsed.lines.pop();
         }
+        let lines = parsed.lines;
 
         let stdout = io::stdout();
         let mut writer = io::BufWriter::new(stdout.lock());
@@ -309,7 +310,14 @@ fn main() -> Result<()> {
     }
 
     let at = app_theme();
-    let (lines, toc, link_spans, _) = parse_markdown(&src, &ss, &theme, &at.markdown, file_mode);
+    let parsed = parse_markdown(&src, &ss, &theme, &at.markdown, file_mode);
+    let crate::markdown::ParseResult {
+        lines,
+        toc,
+        link_spans,
+        line_number_map,
+        source_line_map,
+    } = parsed;
     let mut app = App::new_with_source(
         lines,
         toc,
@@ -323,6 +331,7 @@ fn main() -> Result<()> {
         },
     );
     app.set_link_spans(link_spans);
+    app.set_line_maps(line_number_map, source_line_map);
     app.set_last_content_hash(last_content_hash);
     app.set_watch_from_config(watch_from_config);
     app.set_max_width(max_width);

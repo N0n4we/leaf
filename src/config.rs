@@ -148,10 +148,11 @@ fn open_config_in_editor(path: &Path) -> anyhow::Result<()> {
 }
 
 fn launch_editor(editor: &str, path: &Path) {
-    if try_launch_editor(editor, path) {
+    let expanded = crate::editor::expand_line_placeholder(editor, 1);
+    if try_launch_editor(&expanded, path) {
         return;
     }
-    if let Some(fallback) = crate::editor::resolve_fallback_editor(editor) {
+    if let Some(fallback) = crate::editor::resolve_fallback_editor(&expanded) {
         try_launch_editor(fallback, path);
     }
 }
