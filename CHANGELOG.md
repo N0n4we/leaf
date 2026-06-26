@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [[1.25.0](https://github.com/RivoLink/leaf/releases/tag/1.25.0)] - 2026-06-26
+
+### Added
+
+- editor config path placeholder ([#189](https://github.com/RivoLink/leaf/pull/189))
+- editor open visible line ([#188](https://github.com/RivoLink/leaf/pull/188))
+- toc mouse navigation ([#184](https://github.com/RivoLink/leaf/pull/184))
+
+### Changed
+
+- toc mouse hover effect ([#187](https://github.com/RivoLink/leaf/pull/187))
+- update quinn-proto to 0.11.15 ([#186](https://github.com/RivoLink/leaf/pull/186))
+
 ## [[1.24.2](https://github.com/RivoLink/leaf/releases/tag/1.24.2)] - 2026-06-14
 
 ### Docs
