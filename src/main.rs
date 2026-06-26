@@ -36,7 +36,7 @@ const MAX_STDIN_BYTES: usize = 8 * 1024 * 1024;
 pub(crate) use config::{config_path, LeafConfig};
 #[cfg(test)]
 pub(crate) use editor::{
-    binary_name, classify, expand_line_placeholder, resolve_editor, selection_modifier_label,
+    binary_name, classify, expand_editor_placeholders, resolve_editor, selection_modifier_label,
     split_editor_cmd, try_new_tab_command, EditorKind, TerminalEmulator,
 };
 #[cfg(test)]
