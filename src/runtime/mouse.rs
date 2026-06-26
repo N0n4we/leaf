@@ -70,11 +70,13 @@ pub(super) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) -> bool {
             MouseEventKind::ScrollUp => {
                 app.scroll_up(super::MOUSE_SCROLL_STEP);
                 app.hovered_link = None;
+                app.hovered_toc_idx = None;
                 true
             }
             MouseEventKind::ScrollDown => {
                 app.scroll_down(super::MOUSE_SCROLL_STEP);
                 app.hovered_link = None;
+                app.hovered_toc_idx = None;
                 true
             }
             MouseEventKind::Down(MouseButton::Left) => {
@@ -87,10 +89,13 @@ pub(super) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) -> bool {
                     .unwrap_or(false);
                 app.last_click = Some((mouse.column, mouse.row, now));
 
-                if app.is_toc_visible() && app.has_toc() {
-                    if let Some(display_idx) =
-                        toc_click_display_index(app.toc_list_area, mouse.column, mouse.row)
-                    {
+                if let Some(area) = app.toc_list_area {
+                    if let Some(display_idx) = toc_display_index_at(
+                        area,
+                        app.toc_display_entries().len(),
+                        mouse.column,
+                        mouse.row,
+                    ) {
                         app.scroll_to_toc_display_line(display_idx);
                         return true;
                     }
@@ -190,7 +195,20 @@ pub(super) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) -> bool {
                     app.hovered_link = new_hover;
                 }
 
-                scrollbar_changed || hover_changed
+                let new_toc_hover = app.toc_list_area.and_then(|area| {
+                    toc_display_index_at(
+                        area,
+                        app.toc_display_entries().len(),
+                        mouse.column,
+                        mouse.row,
+                    )
+                });
+                let toc_hover_changed = app.hovered_toc_idx != new_toc_hover;
+                if toc_hover_changed {
+                    app.hovered_toc_idx = new_toc_hover;
+                }
+
+                scrollbar_changed || hover_changed || toc_hover_changed
             }
             _ => false,
         }
@@ -282,15 +300,18 @@ fn try_open_editor(
     }
 }
 
-fn toc_click_display_index(toc_list_area: Rect, col: u16, row: u16) -> Option<usize> {
+const TOC_RIGHT_BORDER_WIDTH: u16 = 1;
+
+fn toc_display_index_at(area: Rect, entries_len: usize, col: u16, row: u16) -> Option<usize> {
     let inner = Rect {
-        width: toc_list_area.width.saturating_sub(1),
-        ..toc_list_area
+        width: area.width.saturating_sub(TOC_RIGHT_BORDER_WIDTH),
+        ..area
     };
     if !is_in_rect(inner, col, row) {
         return None;
     }
-    Some((row - toc_list_area.y) as usize)
+    let display_idx = (row - area.y) as usize;
+    (display_idx < entries_len).then_some(display_idx)
 }
 
 pub(super) fn is_on_scrollbar(area: Rect, col: u16, row: u16) -> bool {
