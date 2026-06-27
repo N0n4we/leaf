@@ -149,6 +149,9 @@ pub(super) fn push_heading_lines(
     }
 }
 
+pub(super) const CODE_BLOCK_GUTTER: &str = "│";
+pub(super) const CODE_BLOCK_GUTTER_WRAP: &str = "┊";
+
 pub(super) struct CodeBlockRenderContext<'a> {
     pub(super) ss: &'a SyntaxSet,
     pub(super) theme: &'a Theme,
@@ -157,6 +160,7 @@ pub(super) struct CodeBlockRenderContext<'a> {
     pub(super) blockquote_depth: usize,
     pub(super) list_stack: &'a [ListKind],
     pub(super) file_mode: bool,
+    pub(super) code_line_numbers: bool,
 }
 
 pub(super) fn push_code_block_lines(
@@ -188,6 +192,7 @@ pub(super) fn push_code_block_lines(
     } else {
         code_lang.clone()
     };
+    let show_line_numbers = ctx.code_line_numbers;
     let available_width = ctx.render_width.saturating_sub(prefix_width);
     let (code_lines, inner_width, digit_width) = highlight_code(
         code_buf,
@@ -196,8 +201,13 @@ pub(super) fn push_code_block_lines(
         ctx.theme,
         available_width,
         ctx.file_mode,
+        show_line_numbers,
     );
-    let gutter_width = digit_width + 2;
+    let gutter_width = if show_line_numbers {
+        digit_width + 2
+    } else {
+        1
+    };
     let gutter_style = Style::default().fg(ctx.theme_colors.code_gutter);
     let content_width = inner_width.saturating_sub(gutter_width + 1);
 
@@ -220,16 +230,25 @@ pub(super) fn push_code_block_lines(
     ]);
     lines.push(Line::from(header));
 
+    let plain_first_gutter = Span::styled(CODE_BLOCK_GUTTER, gutter_style);
+    let plain_cont_gutter = Span::styled(CODE_BLOCK_GUTTER_WRAP, gutter_style);
+
     for (i, code_line) in code_lines.into_iter().enumerate() {
-        let line_num = i + 1;
-        let num_gutter = Span::styled(format!("│{:>w$}│", line_num, w = digit_width), gutter_style);
-        let blank_gutter = Span::styled(format!("│{:>w$}│", "", w = digit_width), gutter_style);
+        let (first_gutter, cont_gutter) = if show_line_numbers {
+            let line_num = i + 1;
+            (
+                Span::styled(format!("│{:>w$}│", line_num, w = digit_width), gutter_style),
+                Span::styled(format!("│{:>w$}│", "", w = digit_width), gutter_style),
+            )
+        } else {
+            (plain_first_gutter.clone(), plain_cont_gutter.clone())
+        };
 
         let mut first_prefix = prefix.clone();
-        first_prefix.push(num_gutter);
+        first_prefix.push(first_gutter);
 
         let mut cont_prefix = prefix.clone();
-        cont_prefix.push(blank_gutter);
+        cont_prefix.push(cont_gutter);
 
         push_wrapped_code_lines(
             lines,
@@ -242,12 +261,17 @@ pub(super) fn push_code_block_lines(
     }
 
     let mut footer = prefix;
-    footer.push(Span::styled(
+    let footer_text = if show_line_numbers {
         format!(
             "└{}┴{}┘",
             "─".repeat(gutter_width - 2),
             "─".repeat(inner_width.saturating_sub(gutter_width - 1))
-        ),
+        )
+    } else {
+        format!("└{}┘", "─".repeat(inner_width))
+    };
+    footer.push(Span::styled(
+        footer_text,
         Style::default().fg(ctx.theme_colors.code_frame),
     ));
     lines.push(Line::from(footer));
@@ -332,11 +356,8 @@ pub(super) fn push_special_block_lines<F: Fn(&str) -> Vec<Span<'static>>>(
     } else {
         String::new()
     };
-    let border_only = if !show_line_numbers {
-        Some(Span::styled("│".to_string(), gutter_style))
-    } else {
-        None
-    };
+    let plain_first_gutter = Span::styled(CODE_BLOCK_GUTTER, gutter_style);
+    let plain_cont_gutter = Span::styled(CODE_BLOCK_GUTTER_WRAP, gutter_style);
 
     for (i, content_line) in content_lines.iter().enumerate() {
         let mut content_spans = (ctx.make_spans)(content_line);
@@ -346,9 +367,9 @@ pub(super) fn push_special_block_lines<F: Fn(&str) -> Vec<Span<'static>>>(
 
         let mut first_prefix = prefix.clone();
         let mut cont_prefix = prefix.clone();
-        if let Some(ref border) = border_only {
-            first_prefix.push(border.clone());
-            cont_prefix.push(border.clone());
+        if !show_line_numbers {
+            first_prefix.push(plain_first_gutter.clone());
+            cont_prefix.push(plain_cont_gutter.clone());
         } else {
             let line_num = i + 1;
             first_prefix.push(Span::styled(
@@ -391,13 +412,18 @@ pub(super) fn push_special_block_lines<F: Fn(&str) -> Vec<Span<'static>>>(
     lines.push(Line::from(""));
 }
 
+pub(super) struct EmbeddedBlockCtx<'a> {
+    pub(super) render_width: usize,
+    pub(super) theme: &'a MarkdownTheme,
+    pub(super) blockquote_depth: usize,
+    pub(super) list_stack: &'a [ListKind],
+    pub(super) code_line_numbers: bool,
+}
+
 pub(super) fn push_latex_block_lines(
     lines: &mut Vec<Line<'static>>,
     content: &str,
-    render_width: usize,
-    theme: &MarkdownTheme,
-    blockquote_depth: usize,
-    list_stack: &[ListKind],
+    ctx: EmbeddedBlockCtx<'_>,
     item_stack: &mut [ItemState],
 ) {
     let rendered = latex::to_unicode(content);
@@ -410,18 +436,18 @@ pub(super) fn push_latex_block_lines(
         .iter()
         .rposition(|l| !l.trim().is_empty())
         .map_or(start, |e| e + 1);
-    let content_style = Style::default().fg(theme.latex_block_fg);
+    let content_style = Style::default().fg(ctx.theme.latex_block_fg);
     push_special_block_lines(
         lines,
-        render_width,
-        theme,
-        blockquote_depth,
-        list_stack,
+        ctx.render_width,
+        ctx.theme,
+        ctx.blockquote_depth,
+        ctx.list_stack,
         item_stack,
         SpecialBlockCtx {
             label: "latex",
             content_lines: &all_lines[start..end],
-            show_line_numbers: true,
+            show_line_numbers: ctx.code_line_numbers,
             center: false,
             make_spans: |line| vec![Span::styled(line.to_string(), content_style)],
         },
@@ -431,10 +457,7 @@ pub(super) fn push_latex_block_lines(
 pub(super) fn push_mermaid_block_lines(
     lines: &mut Vec<Line<'static>>,
     content: &str,
-    render_width: usize,
-    theme: &MarkdownTheme,
-    blockquote_depth: usize,
-    list_stack: &[ListKind],
+    ctx: EmbeddedBlockCtx<'_>,
     item_stack: &mut [ItemState],
 ) {
     let rendered = mermaid::render(content);
@@ -444,24 +467,24 @@ pub(super) fn push_mermaid_block_lines(
     } else {
         content.lines().collect()
     };
-    let content_style = Style::default().fg(theme.mermaid_block_fg);
+    let content_style = Style::default().fg(ctx.theme.mermaid_block_fg);
     push_special_block_lines(
         lines,
-        render_width,
-        theme,
-        blockquote_depth,
-        list_stack,
+        ctx.render_width,
+        ctx.theme,
+        ctx.blockquote_depth,
+        ctx.list_stack,
         item_stack,
         SpecialBlockCtx {
             label: "mermaid",
             content_lines: &content_lines,
-            show_line_numbers: !use_rendered,
+            show_line_numbers: !use_rendered && ctx.code_line_numbers,
             center: use_rendered,
             make_spans: |line| {
                 if use_rendered {
                     vec![Span::styled(line.to_string(), content_style)]
                 } else {
-                    mermaid::colorize_line(line, theme)
+                    mermaid::colorize_line(line, ctx.theme)
                 }
             },
         },

@@ -130,6 +130,7 @@ impl App {
             self.render_width,
             &at.markdown,
             self.file_mode,
+            self.code_line_numbers,
         );
         self.store_theme_preview(preset, &parsed.lines, &parsed.toc);
         self.replace_content(parsed);
@@ -153,6 +154,7 @@ impl App {
                     self.render_width,
                     &at.markdown,
                     self.file_mode,
+                    self.code_line_numbers,
                 );
                 self.replace_content(parsed);
             }

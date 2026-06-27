@@ -11,7 +11,7 @@ use syntect::parsing::SyntaxSet;
 fn blockquote_bold_link_preserves_link_color() {
     let (ss, theme) = test_assets();
     let src = "> text [**lien bold**](https://rivolink.mg)\n";
-    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false).into();
+    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false, true).into();
     let app_theme = app_theme();
     let theme_colors = &app_theme.markdown;
 
@@ -46,7 +46,8 @@ fn link_spans_detected_for_all_link_types() {
 
 [A](https://example.com/a) and [B](https://example.com/b)
 ";
-    let (_, _, link_spans, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false).into();
+    let (_, _, link_spans, _) =
+        parse_markdown(md, &ss, &theme, &test_md_theme(), false, true).into();
 
     let urls: Vec<&str> = link_spans.iter().map(|ls| ls.url.as_str()).collect();
 
@@ -106,7 +107,8 @@ fn link_spans_in_table_are_detected() {
 |------|------|
 | Test | [example](https://example.com/table) |
 ";
-    let (_, _, link_spans, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false).into();
+    let (_, _, link_spans, _) =
+        parse_markdown(md, &ss, &theme, &test_md_theme(), false, true).into();
 
     let urls: Vec<&str> = link_spans.iter().map(|ls| ls.url.as_str()).collect();
     assert!(
@@ -263,7 +265,7 @@ fn resolve_syntax_php_uses_php_source() {
 fn php_code_block_without_open_tag_is_highlighted() {
     let (ss, theme) = test_assets();
     let md = "```php\nforeach ($map as $item) {\n    $scores[] = $item ?? 0;\n}\n```\n";
-    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false).into();
+    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false, true).into();
 
     let span_fg = |needle: &str| {
         lines

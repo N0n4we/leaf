@@ -8,7 +8,7 @@ fn narrow_tables_fit_render_width_and_wrap_cells() {
     let (ss, theme) = test_assets();
     let md = "| Column | Description | Value |\n| --- | --- | ---: |\n| Width | Terminal-dependent layout behavior | 80 |\n";
     let (lines, _, _, _) =
-        parse_markdown_with_width(md, &ss, &theme, 36, &test_md_theme(), false).into();
+        parse_markdown_with_width(md, &ss, &theme, 36, &test_md_theme(), false, true).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     assert!(rendered.len() >= 6);
@@ -19,7 +19,7 @@ fn narrow_tables_fit_render_width_and_wrap_cells() {
 fn table_inline_code_has_code_style() {
     let (ss, theme) = test_assets();
     let md = "| A |\n|---|\n| `code` |\n";
-    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false).into();
+    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false, true).into();
     let app_theme = app_theme();
     let theme_colors = &app_theme.markdown;
 
@@ -38,7 +38,7 @@ fn table_inline_code_has_code_style() {
 fn table_inline_code_has_padding() {
     let (ss, theme) = test_assets();
     let md = "| A |\n|---|\n| `x` |\n";
-    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false).into();
+    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false, true).into();
     let app_theme = app_theme();
     let theme_colors = &app_theme.markdown;
 
@@ -57,7 +57,7 @@ fn table_inline_code_has_padding() {
 fn table_inline_math_renders_with_latex_style() {
     let (ss, theme) = test_assets();
     let md = "| A |\n|---|\n| $\\alpha$ |\n";
-    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false).into();
+    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false, true).into();
     let app_theme = app_theme();
     let theme_colors = &app_theme.markdown;
 
@@ -76,7 +76,7 @@ fn table_inline_math_renders_with_latex_style() {
 fn table_mixed_text_and_code_renders_both_styles() {
     let (ss, theme) = test_assets();
     let md = "| A |\n|---|\n| hello `world` bye |\n";
-    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false).into();
+    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false, true).into();
     let app_theme = app_theme();
     let theme_colors = &app_theme.markdown;
 
@@ -99,7 +99,7 @@ fn table_mixed_text_and_code_renders_both_styles() {
 fn table_without_inline_styles_renders_normally() {
     let (ss, theme) = test_assets();
     let md = "| A | B |\n|---|---|\n| one | two |\n";
-    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false).into();
+    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false, true).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     assert!(rendered.iter().any(|line| line.contains("one")));
@@ -110,7 +110,7 @@ fn table_without_inline_styles_renders_normally() {
 fn table_inline_code_col_width_includes_padding() {
     let (ss, theme) = test_assets();
     let md = "| A |\n|---|\n| `longcode` |\n";
-    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false).into();
+    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false, true).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     let top_border = rendered.iter().find(|l| l.contains('┌')).unwrap();
@@ -127,7 +127,7 @@ fn table_inline_code_col_width_includes_padding() {
 fn table_code_adjacent_text_no_extra_space() {
     let (ss, theme) = test_assets();
     let md = "| A |\n|---|\n| `code`:text |\n";
-    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false).into();
+    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false, true).into();
     let rendered = rendered_non_empty_lines(&lines);
     let cell_line = rendered
         .iter()
@@ -143,7 +143,7 @@ fn table_code_adjacent_text_no_extra_space() {
 fn table_bold_adjacent_text_no_extra_space() {
     let (ss, theme) = test_assets();
     let md = "| A |\n|---|\n| **bold**:text |\n";
-    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false).into();
+    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false, true).into();
     let rendered = rendered_non_empty_lines(&lines);
     let cell_line = rendered
         .iter()
@@ -159,7 +159,7 @@ fn table_bold_adjacent_text_no_extra_space() {
 fn table_apostrophe_no_split() {
     let (ss, theme) = test_assets();
     let md = "| A |\n|---|\n| apos'trophe |\n";
-    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false).into();
+    let (lines, _, _, _) = parse_markdown(md, &ss, &theme, &test_md_theme(), false, true).into();
     let rendered = rendered_non_empty_lines(&lines);
     let cell_line = rendered
         .iter()
@@ -178,7 +178,7 @@ fn table_long_inline_code_wraps_without_clipping() {
     let md = format!("| Description |\n|---|\n| `{code}` |\n");
     let width = 24;
     let (lines, _, _, _) =
-        parse_markdown_with_width(&md, &ss, &theme, width, &test_md_theme(), false).into();
+        parse_markdown_with_width(&md, &ss, &theme, width, &test_md_theme(), false, true).into();
     let rendered = rendered_non_empty_lines(&lines);
     let theme_colors = &app_theme().markdown;
 

@@ -19,6 +19,8 @@ pub(crate) struct LeafConfig {
     pub(crate) watch: Option<bool>,
     pub(crate) width: Option<usize>,
     pub(crate) extras: Vec<String>,
+    #[serde(rename = "code-line-numbers")]
+    pub(crate) code_line_numbers: Option<bool>,
     pub(crate) themes: BTreeMap<String, CustomThemeConfig>,
     #[serde(skip)]
     pub(crate) config_dir: Option<PathBuf>,

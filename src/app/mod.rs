@@ -138,6 +138,7 @@ pub(crate) struct App {
     numkey_cycle: Option<NumkeyCycleState>,
     reverse_mode: bool,
     pub(super) file_mode: bool,
+    pub(super) code_line_numbers: bool,
     max_width: Option<usize>,
 }
 
@@ -287,6 +288,7 @@ impl App {
             numkey_cycle: None,
             reverse_mode: false,
             file_mode: false,
+            code_line_numbers: true,
             max_width: None,
         };
         app.store_current_theme_preview();
@@ -300,6 +302,10 @@ impl App {
 
     pub(crate) fn set_file_mode(&mut self, file_mode: bool) {
         self.file_mode = file_mode;
+    }
+
+    pub(crate) fn set_code_line_numbers(&mut self, value: bool) {
+        self.code_line_numbers = value;
     }
 
     pub(crate) fn set_max_width(&mut self, max_width: Option<usize>) {

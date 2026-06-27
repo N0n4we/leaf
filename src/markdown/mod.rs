@@ -41,7 +41,7 @@ use toc::{normalize_toc, TocEntry};
 use blocks::{
     flush_wrapped_spans, push_code_block_lines, push_heading_lines, push_latex_block_lines,
     push_mermaid_block_lines, push_rule_line, trim_paragraph_gap_before_block,
-    CodeBlockRenderContext,
+    CodeBlockRenderContext, EmbeddedBlockCtx, CODE_BLOCK_GUTTER,
 };
 use fences::normalize_code_fences;
 use links::build_link_spans;
@@ -253,8 +253,17 @@ pub(crate) fn parse_markdown(
     theme: &syntect::highlighting::Theme,
     md_theme: &MarkdownTheme,
     file_mode: bool,
+    code_line_numbers: bool,
 ) -> ParseResult {
-    parse_markdown_with_width(src, ss, theme, DEFAULT_RENDER_WIDTH, md_theme, file_mode)
+    parse_markdown_with_width(
+        src,
+        ss,
+        theme,
+        DEFAULT_RENDER_WIDTH,
+        md_theme,
+        file_mode,
+        code_line_numbers,
+    )
 }
 
 pub(crate) fn parse_markdown_with_width(
@@ -264,6 +273,7 @@ pub(crate) fn parse_markdown_with_width(
     render_width: usize,
     theme_colors: &MarkdownTheme,
     file_mode: bool,
+    code_line_numbers: bool,
 ) -> ParseResult {
     let original_src = src;
     let (src, fm_pairs) = frontmatter::extract_frontmatter(src);
@@ -377,10 +387,13 @@ pub(crate) fn parse_markdown_with_width(
                     push_latex_block_lines(
                         &mut lines,
                         &code_buf,
-                        render_width,
-                        theme_colors,
-                        blockquote_depth,
-                        &list_stack,
+                        EmbeddedBlockCtx {
+                            render_width,
+                            theme: theme_colors,
+                            blockquote_depth,
+                            list_stack: &list_stack,
+                            code_line_numbers,
+                        },
                         &mut item_stack,
                     );
                     code_buf.clear();
@@ -390,10 +403,13 @@ pub(crate) fn parse_markdown_with_width(
                     push_mermaid_block_lines(
                         &mut lines,
                         &code_buf,
-                        render_width,
-                        theme_colors,
-                        blockquote_depth,
-                        &list_stack,
+                        EmbeddedBlockCtx {
+                            render_width,
+                            theme: theme_colors,
+                            blockquote_depth,
+                            list_stack: &list_stack,
+                            code_line_numbers,
+                        },
                         &mut item_stack,
                     );
                     code_buf.clear();
@@ -411,6 +427,7 @@ pub(crate) fn parse_markdown_with_width(
                             blockquote_depth,
                             list_stack: &list_stack,
                             file_mode,
+                            code_line_numbers,
                         },
                         &mut item_stack,
                     );
@@ -525,10 +542,13 @@ pub(crate) fn parse_markdown_with_width(
                 push_latex_block_lines(
                     &mut lines,
                     text.as_ref(),
-                    render_width,
-                    theme_colors,
-                    blockquote_depth,
-                    &list_stack,
+                    EmbeddedBlockCtx {
+                        render_width,
+                        theme: theme_colors,
+                        blockquote_depth,
+                        list_stack: &list_stack,
+                        code_line_numbers,
+                    },
                     &mut item_stack,
                 );
                 wraps = true;
@@ -615,6 +635,7 @@ impl LineMapState {
                         || (c.starts_with('│')
                             && c.ends_with('│')
                             && c.chars().any(|ch| ch.is_ascii_digit()))
+                        || c == CODE_BLOCK_GUTTER
                 });
             self.push(is_new);
         }
