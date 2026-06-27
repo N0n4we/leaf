@@ -11,6 +11,7 @@ fn inline_latex_renders_with_latex_style() {
         &theme,
         &test_md_theme(),
         false,
+        true,
     )
     .into();
 
@@ -35,7 +36,7 @@ fn inline_latex_renders_with_latex_style() {
 fn display_latex_renders_in_framed_block() {
     let (ss, theme) = test_assets();
     let (lines, _, _, _) =
-        parse_markdown("$$E = mc^2$$\n", &ss, &theme, &test_md_theme(), false).into();
+        parse_markdown("$$E = mc^2$$\n", &ss, &theme, &test_md_theme(), false, true).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     assert!(
@@ -61,6 +62,7 @@ fn inline_latex_is_searchable() {
         &theme,
         &test_md_theme(),
         false,
+        true,
     )
     .into();
     let searchable: Vec<String> = lines.iter().map(line_plain_text).collect();
@@ -75,7 +77,7 @@ fn inline_latex_is_searchable() {
 fn display_latex_in_blockquote_has_quote_prefix() {
     let (ss, theme) = test_assets();
     let (lines, _, _, _) =
-        parse_markdown("> $$F = ma$$\n", &ss, &theme, &test_md_theme(), false).into();
+        parse_markdown("> $$F = ma$$\n", &ss, &theme, &test_md_theme(), false, true).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     let header = rendered
@@ -97,6 +99,7 @@ fn mermaid_block_renders_in_framed_block() {
         &theme,
         &test_md_theme(),
         false,
+        true,
     )
     .into();
     let rendered = rendered_non_empty_lines(&lines);
@@ -128,6 +131,7 @@ fn mermaid_block_in_blockquote_has_quote_prefix() {
         &theme,
         &test_md_theme(),
         false,
+        true,
     )
     .into();
     let rendered = rendered_non_empty_lines(&lines);
@@ -151,6 +155,7 @@ fn mermaid_content_is_searchable() {
         &theme,
         &test_md_theme(),
         false,
+        true,
     )
     .into();
     let searchable = markdown::width::build_searchable_lines(&lines);
@@ -174,6 +179,7 @@ fn mermaid_rendered_block_has_no_gutter() {
         &theme,
         &test_md_theme(),
         false,
+        true,
     )
     .into();
     let rendered = rendered_non_empty_lines(&lines);
@@ -192,7 +198,7 @@ fn mermaid_rendered_block_has_no_gutter() {
 fn mermaid_fallback_has_numbered_gutter() {
     let (ss, theme) = test_assets();
     let src = "```mermaid\ngantt\n  title Schedule\n  section Dev\n```\n";
-    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false).into();
+    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false, true).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     assert!(
@@ -205,7 +211,7 @@ fn mermaid_fallback_has_numbered_gutter() {
 fn mermaid_pie_renders_bar_chart() {
     let (ss, theme) = test_assets();
     let src = "```mermaid\npie title Languages\n  \"Rust\" : 65\n  \"Go\" : 35\n```\n";
-    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false).into();
+    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false, true).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     assert!(
@@ -234,7 +240,7 @@ fn mermaid_pie_renders_bar_chart() {
 fn mermaid_unsupported_type_falls_back_to_colored_source() {
     let (ss, theme) = test_assets();
     let src = "```mermaid\ngantt\n  title Schedule\n  section Phase 1\n```\n";
-    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false).into();
+    let (lines, _, _, _) = parse_markdown(src, &ss, &theme, &test_md_theme(), false, true).into();
     let rendered = rendered_non_empty_lines(&lines);
 
     assert!(
@@ -250,8 +256,15 @@ fn mermaid_unsupported_type_falls_back_to_colored_source() {
 #[test]
 fn mermaid_empty_block_renders_without_crash() {
     let (ss, theme) = test_assets();
-    let (lines, _, _, _) =
-        parse_markdown("```mermaid\n```\n", &ss, &theme, &test_md_theme(), false).into();
+    let (lines, _, _, _) = parse_markdown(
+        "```mermaid\n```\n",
+        &ss,
+        &theme,
+        &test_md_theme(),
+        false,
+        true,
+    )
+    .into();
     let rendered = rendered_non_empty_lines(&lines);
 
     assert!(

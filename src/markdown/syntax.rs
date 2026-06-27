@@ -89,6 +89,7 @@ pub(super) fn highlight_code(
     theme: &Theme,
     render_width: usize,
     full_width: bool,
+    show_line_numbers: bool,
 ) -> (Vec<CodeLine>, usize, usize) {
     let syntax = resolve_syntax(lang, ss);
     let mut hl = HighlightLines::new(syntax, theme);
@@ -130,14 +131,22 @@ pub(super) fn highlight_code(
 
     let label = if lang.is_empty() { "text" } else { lang };
     let total_lines = raw.len();
-    let digit_width = total_lines.max(1).to_string().len();
+    let digit_width = if show_line_numbers {
+        total_lines.max(1).to_string().len()
+    } else {
+        0
+    };
+    let gutter_width = if show_line_numbers {
+        digit_width + 2
+    } else {
+        1
+    };
     let max_inner_width = render_width
         .saturating_sub(2)
         .max(UnicodeWidthStr::width(label) + 3);
     let inner_width = if full_width {
         max_inner_width
     } else {
-        let gutter_width = digit_width + 2;
         let max_text = raw.iter().map(|(_, w)| *w).max().unwrap_or(0);
         let min_inner = (UnicodeWidthStr::width(label) + 3)
             .max(44)

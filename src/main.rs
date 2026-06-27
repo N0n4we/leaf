@@ -96,6 +96,17 @@ fn resolve_configured_width(
     config_width.map(|w| w.max(20))
 }
 
+fn resolve_code_line_numbers(config_value: Option<bool>) -> bool {
+    if let Ok(val) = std::env::var("LEAF_CODE_LINE_NUMBERS") {
+        match val.as_str() {
+            "1" => return true,
+            "0" => return false,
+            _ => {}
+        }
+    }
+    config_value.unwrap_or(true)
+}
+
 fn append_config_warning(warning: &mut Option<String>, next: Option<String>) {
     let Some(next) = next else {
         return;
@@ -176,6 +187,7 @@ fn main() -> Result<()> {
 
     let watch_from_config = user_config.watch.unwrap_or(false);
     let max_width = resolve_configured_width(cli_width, user_config.width);
+    let code_line_numbers = resolve_code_line_numbers(user_config.code_line_numbers);
 
     if let Some(ref mut spec) = inline_spec {
         if spec.width.is_none() {
@@ -293,8 +305,15 @@ fn main() -> Result<()> {
         let format = inline::resolve_format(spec, is_tty);
 
         let at = app_theme();
-        let mut parsed =
-            parse_markdown_with_width(&src, &ss, &theme, width, &at.markdown, file_mode);
+        let mut parsed = parse_markdown_with_width(
+            &src,
+            &ss,
+            &theme,
+            width,
+            &at.markdown,
+            file_mode,
+            code_line_numbers,
+        );
 
         while parsed.lines.last().is_some_and(|l| {
             l.spans.is_empty() || l.spans.iter().all(|s| s.content.trim().is_empty())
@@ -310,7 +329,14 @@ fn main() -> Result<()> {
     }
 
     let at = app_theme();
-    let parsed = parse_markdown(&src, &ss, &theme, &at.markdown, file_mode);
+    let parsed = parse_markdown(
+        &src,
+        &ss,
+        &theme,
+        &at.markdown,
+        file_mode,
+        code_line_numbers,
+    );
     let crate::markdown::ParseResult {
         lines,
         toc,
@@ -338,6 +364,7 @@ fn main() -> Result<()> {
     app.set_extras(user_config.extras);
     app.set_file_mode(file_mode);
     app.set_editor_config(Some(resolved_editor));
+    app.set_code_line_numbers(code_line_numbers);
     app.set_config_warning(config_warning);
     if let Some(dir) = dir_arg {
         app.set_dir_arg(dir);

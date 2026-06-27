@@ -101,6 +101,7 @@ impl App {
             self.render_width,
             &at.markdown,
             self.file_mode,
+            self.code_line_numbers,
         );
 
         let first_load = self.filepath.is_none();
@@ -139,6 +140,7 @@ impl App {
             self.render_width,
             &at.markdown,
             self.file_mode,
+            self.code_line_numbers,
         );
         let new_total = parsed.lines.len();
 
