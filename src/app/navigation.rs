@@ -1,4 +1,5 @@
-use super::App;
+use super::{App, MIN_PREVIEW_WIDTH, MIN_TOC_WIDTH, TOC_DIVIDER_WIDTH};
+use ratatui::layout::Rect;
 
 pub(super) enum CycleDirection {
     Forward,
@@ -11,6 +12,94 @@ pub(super) struct NumkeyCycleState {
 }
 
 impl App {
+    pub(crate) fn clamp_toc_width_value(width: u16, available_width: u16) -> u16 {
+        if available_width == 0 {
+            return 0;
+        }
+
+        let max_width = available_width
+            .saturating_sub(MIN_PREVIEW_WIDTH)
+            .max(TOC_DIVIDER_WIDTH)
+            .min(available_width);
+        let min_width = MIN_TOC_WIDTH.min(max_width);
+        width.clamp(min_width, max_width)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn toc_width(&self) -> u16 {
+        self.toc_width
+    }
+
+    pub(crate) fn effective_toc_width(&self, available_width: u16) -> u16 {
+        Self::clamp_toc_width_value(self.toc_width, available_width)
+    }
+
+    pub(crate) fn toc_panel_width(&self, available_width: u16) -> u16 {
+        self.effective_toc_width(available_width)
+            .saturating_sub(TOC_DIVIDER_WIDTH)
+    }
+
+    pub(crate) fn set_toc_split_area(&mut self, area: Option<Rect>) {
+        self.toc_split_area = area;
+    }
+
+    pub(crate) fn set_toc_resizer_area(&mut self, area: Option<Rect>) {
+        self.toc_resizer_area = area;
+    }
+
+    pub(crate) fn toc_resizer_area(&self) -> Option<Rect> {
+        self.toc_resizer_area
+    }
+
+    pub(crate) fn toc_resizer_dragging(&self) -> bool {
+        self.toc_resizer_dragging
+    }
+
+    pub(crate) fn clear_toc_layout_state(&mut self) {
+        self.toc_list_area = None;
+        self.toc_split_area = None;
+        self.toc_resizer_area = None;
+        self.hovered_toc_idx = None;
+        self.toc_scrollbar_dragging = false;
+        self.toc_resizer_dragging = false;
+    }
+
+    pub(crate) fn set_toc_panel_width(&mut self, panel_width: u16) -> bool {
+        if self.toc_panel_width == panel_width {
+            return false;
+        }
+        self.toc_panel_width = panel_width;
+        self.toc_display_lines.clear();
+        true
+    }
+
+    pub(crate) fn start_toc_resizer_dragging(&mut self) {
+        self.toc_resizer_dragging = true;
+        self.toc_scrollbar_dragging = false;
+        self.scrollbar_dragging = false;
+        self.hovered_toc_idx = None;
+        self.hovered_link = None;
+    }
+
+    pub(crate) fn stop_toc_resizer_dragging(&mut self) {
+        self.toc_resizer_dragging = false;
+    }
+
+    pub(crate) fn update_toc_width_from_column(&mut self, column: u16) -> bool {
+        let Some(area) = self.toc_split_area else {
+            return false;
+        };
+        let desired = column.saturating_sub(area.x).saturating_add(1);
+        let next = Self::clamp_toc_width_value(desired, area.width);
+        if self.toc_width == next {
+            return false;
+        }
+        self.toc_width = next;
+        self.hovered_toc_idx = None;
+        self.hovered_link = None;
+        true
+    }
+
     pub(super) fn enable_toc_active_follow(&mut self) {
         self.toc_follow_active = true;
     }
@@ -157,8 +246,7 @@ impl App {
     pub(crate) fn toggle_toc(&mut self) {
         self.toc_visible = !self.toc_visible;
         if !self.toc_visible {
-            self.hovered_toc_idx = None;
-            self.toc_scrollbar_dragging = false;
+            self.clear_toc_layout_state();
         } else {
             self.enable_toc_active_follow();
         }

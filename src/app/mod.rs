@@ -14,6 +14,12 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub(crate) const DEFAULT_TOC_WIDTH: u16 = 30;
+pub(crate) const MIN_TOC_WIDTH: u16 = 20;
+pub(crate) const MIN_PREVIEW_WIDTH: u16 = 30;
+pub(crate) const TOC_DIVIDER_WIDTH: u16 = 1;
+pub(crate) const DEFAULT_TOC_PANEL_WIDTH: u16 = DEFAULT_TOC_WIDTH - TOC_DIVIDER_WIDTH;
+
 mod search;
 pub(crate) use search::SearchState;
 
@@ -106,6 +112,8 @@ pub(crate) struct App {
     toc_display_lines: Vec<Line<'static>>,
     toc_display_entries: Vec<usize>,
     toc_header_line: Line<'static>,
+    toc_panel_width: u16,
+    toc_width: u16,
     toc_scroll: usize,
     toc_follow_active: bool,
     pub(crate) toc_active_idx: Option<usize>,
@@ -122,9 +130,12 @@ pub(crate) struct App {
     pub(super) render_width: usize,
     pub(crate) content_area: Rect,
     pub(crate) toc_list_area: Option<Rect>,
+    pub(crate) toc_split_area: Option<Rect>,
+    pub(crate) toc_resizer_area: Option<Rect>,
     pub(crate) mouse_position: (u16, u16),
     pub(crate) scrollbar_dragging: bool,
     pub(crate) toc_scrollbar_dragging: bool,
+    pub(crate) toc_resizer_dragging: bool,
     pub(super) editor_config: Option<String>,
     pub(super) editor_flash: Option<(EditorFlash, Instant)>,
     watch_flash: Option<(WatchFlash, Instant)>,
@@ -238,6 +249,8 @@ impl App {
             toc_display_lines: Vec::new(),
             toc_display_entries: Vec::new(),
             toc_header_line: toc_header_line(),
+            toc_panel_width: DEFAULT_TOC_PANEL_WIDTH,
+            toc_width: DEFAULT_TOC_WIDTH,
             toc_scroll: 0,
             toc_follow_active: true,
             toc_active_idx: None,
@@ -275,9 +288,12 @@ impl App {
             render_width: 80,
             content_area: Rect::default(),
             toc_list_area: None,
+            toc_split_area: None,
+            toc_resizer_area: None,
             mouse_position: (0, 0),
             scrollbar_dragging: false,
             toc_scrollbar_dragging: false,
+            toc_resizer_dragging: false,
             editor_config: None,
             editor_flash: None,
             watch_flash: None,
@@ -320,6 +336,11 @@ impl App {
 
     pub(crate) fn max_width(&self) -> Option<usize> {
         self.max_width
+    }
+
+    #[cfg(test)]
+    pub(crate) fn render_width(&self) -> usize {
+        self.render_width
     }
 
     pub(crate) fn set_watch_from_config(&mut self, value: bool) {
@@ -502,6 +523,7 @@ impl App {
                 display_level,
                 (display_level == 1).then_some(top_level_index),
                 active_idx == Some(idx),
+                self.toc_panel_width,
             );
             if display_level == 1 {
                 top_level_index += 1;

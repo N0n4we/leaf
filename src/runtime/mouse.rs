@@ -64,6 +64,7 @@ pub(crate) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) -> bool {
         if matches!(mouse.kind, MouseEventKind::Up(..)) {
             app.scrollbar_dragging = false;
             app.toc_scrollbar_dragging = false;
+            app.stop_toc_resizer_dragging();
         }
         false
     } else {
@@ -108,9 +109,16 @@ pub(crate) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) -> bool {
                     .unwrap_or(false);
                 app.last_click = Some((mouse.column, mouse.row, now));
 
+                if is_on_toc_resizer(app, mouse.column, mouse.row) {
+                    app.start_toc_resizer_dragging();
+                    app.update_toc_width_from_column(mouse.column);
+                    return true;
+                }
+
                 if is_on_toc_scrollbar(app, mouse.column, mouse.row) {
                     app.toc_scrollbar_dragging = true;
                     app.scrollbar_dragging = false;
+                    app.stop_toc_resizer_dragging();
                     toc_scrollbar_scroll_to(app, mouse.row);
                     app.hovered_toc_idx = None;
                     return true;
@@ -184,6 +192,7 @@ pub(crate) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) -> bool {
                 } else if is_on_scrollbar(app.content_area, mouse.column, mouse.row) {
                     app.scrollbar_dragging = true;
                     app.toc_scrollbar_dragging = false;
+                    app.stop_toc_resizer_dragging();
                     scrollbar_scroll_to(app, mouse.row);
                     true
                 } else {
@@ -195,6 +204,7 @@ pub(crate) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) -> bool {
             {
                 app.toc_scrollbar_dragging = true;
                 app.scrollbar_dragging = false;
+                app.stop_toc_resizer_dragging();
                 toc_scrollbar_scroll_to(app, mouse.row);
                 app.hovered_toc_idx = None;
                 true
@@ -204,8 +214,12 @@ pub(crate) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) -> bool {
             {
                 app.scrollbar_dragging = true;
                 app.toc_scrollbar_dragging = false;
+                app.stop_toc_resizer_dragging();
                 scrollbar_scroll_to(app, mouse.row);
                 true
+            }
+            MouseEventKind::Drag(..) if app.toc_resizer_dragging() => {
+                app.update_toc_width_from_column(mouse.column)
             }
             MouseEventKind::Drag(..) if app.toc_scrollbar_dragging => {
                 toc_scrollbar_scroll_to(app, mouse.row);
@@ -217,9 +231,11 @@ pub(crate) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) -> bool {
                 true
             }
             MouseEventKind::Up(..) => {
+                let was_toc_resizer_dragging = app.toc_resizer_dragging();
                 app.scrollbar_dragging = false;
                 app.toc_scrollbar_dragging = false;
-                false
+                app.stop_toc_resizer_dragging();
+                was_toc_resizer_dragging
             }
             MouseEventKind::Moved if prev_pos != app.mouse_position => {
                 let area = app.content_area;
@@ -228,6 +244,8 @@ pub(crate) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) -> bool {
                     || is_on_scrollbar(area, mouse.column, mouse.row);
                 let toc_scrollbar_changed = is_on_toc_scrollbar(app, prev_col, prev_row)
                     || is_on_toc_scrollbar(app, mouse.column, mouse.row);
+                let toc_resizer_changed = is_on_toc_resizer(app, prev_col, prev_row)
+                    || is_on_toc_resizer(app, mouse.column, mouse.row);
 
                 let gutter = app.line_number_gutter_width() as u16;
                 let new_hover = app.find_hovered_link(
@@ -256,7 +274,11 @@ pub(crate) fn handle_mouse_event(app: &mut App, mouse: MouseEvent) -> bool {
                     app.hovered_toc_idx = new_toc_hover;
                 }
 
-                scrollbar_changed || toc_scrollbar_changed || hover_changed || toc_hover_changed
+                scrollbar_changed
+                    || toc_scrollbar_changed
+                    || toc_resizer_changed
+                    || hover_changed
+                    || toc_hover_changed
             }
             _ => false,
         }
@@ -351,7 +373,7 @@ fn try_open_editor(
     }
 }
 
-const TOC_RIGHT_BORDER_WIDTH: u16 = 1;
+const TOC_RIGHT_GUTTER_WIDTH: u16 = CONTENT_HORIZONTAL_PADDING + SCROLLBAR_WIDTH;
 
 fn toc_display_index_at(
     area: Rect,
@@ -361,7 +383,7 @@ fn toc_display_index_at(
     row: u16,
 ) -> Option<usize> {
     let inner = Rect {
-        width: area.width.saturating_sub(TOC_RIGHT_BORDER_WIDTH),
+        width: area.width.saturating_sub(TOC_RIGHT_GUTTER_WIDTH),
         ..area
     };
     if !is_in_rect(inner, col, row) {
@@ -383,8 +405,13 @@ fn is_on_toc_scrollbar(app: &App, col: u16, row: u16) -> bool {
     if !app.toc_is_overflowing(area.height as usize) || area.width == 0 {
         return false;
     }
-    let sb_x = area.x + area.width - TOC_RIGHT_BORDER_WIDTH;
+    let sb_x = area.x + area.width - SCROLLBAR_WIDTH;
     col == sb_x && row >= area.y && row < area.y + area.height
+}
+
+fn is_on_toc_resizer(app: &App, col: u16, row: u16) -> bool {
+    app.toc_resizer_area()
+        .is_some_and(|area| is_in_rect(area, col, row))
 }
 
 pub(super) fn is_on_scrollbar(area: Rect, col: u16, row: u16) -> bool {

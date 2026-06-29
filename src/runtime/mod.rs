@@ -6,7 +6,7 @@ use crate::{
     render::{ui, CONTENT_HORIZONTAL_PADDING, SCROLLBAR_WIDTH},
 };
 use anyhow::Result;
-use crossterm::event::{self, poll, Event, KeyEventKind};
+use crossterm::event::{self, poll, Event, KeyEventKind, MouseEventKind};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::{
     fs::OpenOptions,
@@ -185,6 +185,7 @@ pub(crate) fn run(
                     }
                 }
                 Event::Mouse(mouse) => {
+                    let was_toc_resizer_dragging = app.toc_resizer_dragging();
                     if app.debug_input_enabled() {
                         debug_log(
                             true,
@@ -195,7 +196,15 @@ pub(crate) fn run(
                         );
                     }
                     if mouse::handle_mouse_event(app, mouse) {
-                        needs_redraw = true;
+                        if was_toc_resizer_dragging
+                            && matches!(mouse.kind, MouseEventKind::Drag(..))
+                        {
+                            pending_resize = Some(Instant::now());
+                        } else {
+                            pending_resize = None;
+                            sync_render_width(terminal, app, ss, themes)?;
+                            needs_redraw = true;
+                        }
                     }
                 }
                 Event::Resize(_, _) => {
@@ -295,14 +304,15 @@ fn sync_render_width(
     ))
 }
 
-fn sync_render_width_for_app(
+pub(crate) fn sync_render_width_for_app(
     area_width: usize,
     app: &mut App,
     ss: &SyntaxSet,
     themes: &ThemeSet,
 ) -> bool {
     let content_width = if app.is_toc_visible() && app.has_toc() {
-        area_width.saturating_sub(30)
+        let area_width_u16 = area_width.min(u16::MAX as usize) as u16;
+        area_width.saturating_sub(app.effective_toc_width(area_width_u16) as usize)
     } else {
         area_width
     };

@@ -52,6 +52,8 @@ pub(crate) use runtime::handle_mouse_event;
 #[cfg(test)]
 pub(crate) use runtime::should_handle_key;
 #[cfg(test)]
+pub(crate) use runtime::sync_render_width_for_app;
+#[cfg(test)]
 pub(crate) use theme::{
     parse_theme_color, parse_theme_preset, theme_preset_label, CustomThemeConfig, ThemePreset,
     ThemeSelection, THEME_PRESETS,
