@@ -11,6 +11,97 @@ pub(super) struct NumkeyCycleState {
 }
 
 impl App {
+    pub(super) fn enable_toc_active_follow(&mut self) {
+        self.toc_follow_active = true;
+    }
+
+    pub(crate) fn toc_scroll(&self) -> usize {
+        self.toc_scroll
+    }
+
+    pub(crate) fn max_toc_scroll(&self, viewport_height: usize) -> usize {
+        if viewport_height == 0 {
+            0
+        } else {
+            self.toc_display_entries
+                .len()
+                .saturating_sub(viewport_height)
+        }
+    }
+
+    pub(crate) fn toc_is_overflowing(&self, viewport_height: usize) -> bool {
+        viewport_height > 0 && self.toc_display_entries.len() > viewport_height
+    }
+
+    pub(crate) fn clamp_toc_scroll(&mut self, viewport_height: usize) {
+        self.toc_scroll = self.toc_scroll.min(self.max_toc_scroll(viewport_height));
+    }
+
+    pub(crate) fn scroll_toc_down(&mut self, n: usize, viewport_height: usize) {
+        if !self.toc_is_overflowing(viewport_height) {
+            self.toc_scroll = 0;
+            return;
+        }
+        self.toc_follow_active = false;
+        self.toc_scroll = (self.toc_scroll + n).min(self.max_toc_scroll(viewport_height));
+    }
+
+    pub(crate) fn scroll_toc_up(&mut self, n: usize, viewport_height: usize) {
+        if !self.toc_is_overflowing(viewport_height) {
+            self.toc_scroll = 0;
+            return;
+        }
+        self.toc_follow_active = false;
+        self.toc_scroll = self.toc_scroll.saturating_sub(n);
+    }
+
+    pub(crate) fn scroll_toc_to(&mut self, position: usize, viewport_height: usize) {
+        if !self.toc_is_overflowing(viewport_height) {
+            self.toc_scroll = 0;
+            return;
+        }
+        self.toc_follow_active = false;
+        self.toc_scroll = position.min(self.max_toc_scroll(viewport_height));
+    }
+
+    pub(crate) fn scroll_toc_to_row(&mut self, row_offset: usize, viewport_height: usize) {
+        if viewport_height <= 1 {
+            self.scroll_toc_to(0, viewport_height);
+            return;
+        }
+        let max_scroll = self.max_toc_scroll(viewport_height);
+        let scroll_pos = row_offset.min(viewport_height - 1) * max_scroll / (viewport_height - 1);
+        self.scroll_toc_to(scroll_pos, viewport_height);
+    }
+
+    pub(crate) fn active_toc_display_index(&self) -> Option<usize> {
+        let active_idx = self.toc_active_idx?;
+        self.toc_display_entries
+            .iter()
+            .position(|&entry_idx| entry_idx == active_idx)
+    }
+
+    pub(crate) fn ensure_active_toc_visible(&mut self, viewport_height: usize) {
+        self.clamp_toc_scroll(viewport_height);
+        if !self.toc_follow_active || viewport_height == 0 {
+            return;
+        }
+        let Some(active_display_idx) = self.active_toc_display_index() else {
+            return;
+        };
+        if active_display_idx < self.toc_scroll {
+            self.toc_scroll = active_display_idx;
+        } else {
+            let visible_end = self.toc_scroll.saturating_add(viewport_height);
+            if active_display_idx >= visible_end {
+                self.toc_scroll = active_display_idx
+                    .saturating_add(1)
+                    .saturating_sub(viewport_height);
+            }
+        }
+        self.clamp_toc_scroll(viewport_height);
+    }
+
     pub(crate) fn max_scroll(&self) -> usize {
         self.total()
             .saturating_sub(self.content_area.height as usize)
@@ -35,26 +126,31 @@ impl App {
 
     pub(crate) fn scroll_down(&mut self, n: usize) {
         self.reset_numkey_state();
+        self.enable_toc_active_follow();
         self.scroll = (self.scroll + n).min(self.max_scroll());
     }
 
     pub(crate) fn scroll_up(&mut self, n: usize) {
         self.reset_numkey_state();
+        self.enable_toc_active_follow();
         self.scroll = self.scroll.saturating_sub(n);
     }
 
     pub(crate) fn scroll_top(&mut self) {
         self.reset_numkey_state();
+        self.enable_toc_active_follow();
         self.scroll = 0;
     }
 
     pub(crate) fn scroll_bottom(&mut self) {
         self.reset_numkey_state();
+        self.enable_toc_active_follow();
         self.scroll = self.max_scroll();
     }
 
     pub(crate) fn scroll_to(&mut self, position: usize) {
         self.reset_numkey_state();
+        self.enable_toc_active_follow();
         self.scroll = position.min(self.max_scroll());
     }
 
@@ -62,6 +158,9 @@ impl App {
         self.toc_visible = !self.toc_visible;
         if !self.toc_visible {
             self.hovered_toc_idx = None;
+            self.toc_scrollbar_dragging = false;
+        } else {
+            self.enable_toc_active_follow();
         }
     }
 
@@ -123,6 +222,7 @@ impl App {
         };
 
         self.numkey_cycle = Some(NumkeyCycleState { key, position });
+        self.enable_toc_active_follow();
         self.scroll = self.toc[group[position]].line.min(self.max_scroll());
     }
 }

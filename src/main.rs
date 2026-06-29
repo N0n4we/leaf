@@ -48,6 +48,8 @@ pub(crate) use read_stdin_limited as read_stdin_with_limit;
 #[cfg(test)]
 pub(crate) use render::wrap_path_lines;
 #[cfg(test)]
+pub(crate) use runtime::handle_mouse_event;
+#[cfg(test)]
 pub(crate) use runtime::should_handle_key;
 #[cfg(test)]
 pub(crate) use theme::{

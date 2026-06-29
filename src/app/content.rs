@@ -116,6 +116,7 @@ impl App {
         self.last_content_hash = content_hash;
         self.last_hash_check = Some(Instant::now());
         self.reload_flash = None;
+        self.enable_toc_active_follow();
         self.scroll = 0;
         self.help_open = false;
         self.file_picker.open = false;
@@ -145,6 +146,7 @@ impl App {
         let new_total = parsed.lines.len();
 
         if old_total > 0 {
+            self.enable_toc_active_follow();
             self.scroll = ((self.scroll as f64 / old_total as f64) * new_total as f64) as usize;
             let vh = self.content_area.height as usize;
             self.scroll = self.scroll.min(new_total.saturating_sub(vh));

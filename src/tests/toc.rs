@@ -2,6 +2,7 @@ use super::{test_assets, test_md_theme};
 use crate::app::App;
 use crate::markdown::parse_markdown;
 use crate::*;
+use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::Rect;
 
 fn toc(entries: &[(u8, usize)]) -> Vec<TocEntry> {
@@ -14,6 +15,25 @@ fn toc(entries: &[(u8, usize)]) -> Vec<TocEntry> {
             line: *line,
         })
         .collect()
+}
+
+fn many_toc(count: usize) -> Vec<TocEntry> {
+    (0..count)
+        .map(|i| TocEntry {
+            level: 2,
+            title: format!("Section {}", i + 1),
+            line: i * 10,
+        })
+        .collect()
+}
+
+fn mouse(kind: MouseEventKind, column: u16, row: u16) -> MouseEvent {
+    MouseEvent {
+        kind,
+        column,
+        row,
+        modifiers: KeyModifiers::empty(),
+    }
 }
 
 fn make_app_with_toc(total_lines: usize, viewport_height: u16, toc: Vec<TocEntry>) -> App {
@@ -206,4 +226,183 @@ fn normalize_keeps_top_three_paliers() {
         normalized.iter().map(|e| e.level).collect::<Vec<_>>(),
         vec![2, 3, 4]
     );
+}
+
+#[test]
+fn toc_scroll_bounds_and_non_overflow_behavior() {
+    let mut app = make_app_with_toc(200, 20, many_toc(12));
+    app.refresh_toc_cache();
+
+    assert!(app.toc_is_overflowing(5));
+    assert_eq!(app.max_toc_scroll(5), 7);
+
+    app.scroll_toc_down(100, 5);
+    assert_eq!(app.toc_scroll(), 7);
+
+    app.clamp_toc_scroll(10);
+    assert_eq!(app.toc_scroll(), 2);
+
+    app.scroll_toc_down(3, 20);
+    assert_eq!(app.toc_scroll(), 0);
+    assert!(!app.toc_is_overflowing(20));
+}
+
+#[test]
+fn visible_toc_lines_start_at_toc_scroll() {
+    let mut app = make_app_with_toc(200, 20, many_toc(12));
+    app.refresh_toc_cache();
+    app.scroll_toc_down(3, 5);
+
+    let first = line_plain_text(&app.visible_toc_lines(5)[0]);
+    assert!(first.contains("04"));
+    assert!(first.contains("Section 4"));
+}
+
+#[test]
+fn toc_hover_and_click_mapping_include_toc_scroll() {
+    let mut app = make_app_with_toc(200, 20, many_toc(12));
+    app.toc_list_area = Some(Rect::new(0, 0, 30, 5));
+    app.refresh_toc_cache();
+    app.scroll_toc_down(4, 5);
+
+    assert!(handle_mouse_event(
+        &mut app,
+        mouse(MouseEventKind::Moved, 5, 2)
+    ));
+    assert_eq!(app.hovered_toc_idx, Some(6));
+
+    assert!(handle_mouse_event(
+        &mut app,
+        mouse(MouseEventKind::Down(MouseButton::Left), 5, 2)
+    ));
+    assert_eq!(app.scroll(), 60);
+}
+
+#[test]
+fn mouse_wheel_over_toc_scrolls_toc_not_document() {
+    let mut app = make_app_with_toc(200, 20, many_toc(12));
+    app.toc_list_area = Some(Rect::new(0, 0, 30, 5));
+    app.refresh_toc_cache();
+    app.scroll_to(10);
+
+    assert!(handle_mouse_event(
+        &mut app,
+        mouse(MouseEventKind::ScrollDown, 5, 1)
+    ));
+
+    assert_eq!(app.toc_scroll(), 3);
+    assert_eq!(app.scroll(), 10);
+}
+
+#[test]
+fn mouse_wheel_outside_toc_scrolls_document() {
+    let mut app = make_app_with_toc(200, 20, many_toc(12));
+    app.toc_list_area = Some(Rect::new(0, 0, 30, 5));
+    app.refresh_toc_cache();
+    app.scroll_to(10);
+
+    assert!(handle_mouse_event(
+        &mut app,
+        mouse(MouseEventKind::ScrollDown, 40, 1)
+    ));
+
+    assert_eq!(app.toc_scroll(), 0);
+    assert_eq!(app.scroll(), 13);
+}
+
+#[test]
+fn active_toc_follow_keeps_active_heading_visible() {
+    let mut app = make_app_with_toc(300, 20, many_toc(20));
+    app.refresh_toc_cache();
+
+    app.scroll_to(120);
+    app.refresh_toc_cache();
+    app.ensure_active_toc_visible(5);
+
+    let active = app.active_toc_display_index().unwrap();
+    assert!((app.toc_scroll()..app.toc_scroll() + 5).contains(&active));
+
+    app.scroll_top();
+    app.refresh_toc_cache();
+    app.ensure_active_toc_visible(5);
+
+    assert_eq!(app.active_toc_display_index(), Some(0));
+    assert_eq!(app.toc_scroll(), 0);
+}
+
+#[test]
+fn opening_toc_at_deep_scroll_positions_active_heading() {
+    let mut app = make_app_with_toc(300, 20, many_toc(20));
+    app.scroll_to(150);
+    app.toggle_toc();
+    app.refresh_toc_cache();
+    app.ensure_active_toc_visible(5);
+
+    let active = app.active_toc_display_index().unwrap();
+    assert!((app.toc_scroll()..app.toc_scroll() + 5).contains(&active));
+}
+
+#[test]
+fn manual_toc_scroll_is_not_overridden_by_active_follow() {
+    let mut app = make_app_with_toc(300, 20, many_toc(20));
+    app.refresh_toc_cache();
+    app.scroll_to(120);
+    app.refresh_toc_cache();
+    app.ensure_active_toc_visible(5);
+    assert!(app.toc_scroll() > 0);
+
+    app.scroll_toc_up(100, 5);
+    app.refresh_toc_cache();
+    app.ensure_active_toc_visible(5);
+
+    assert_eq!(app.toc_scroll(), 0);
+}
+
+#[test]
+fn toc_scroll_clamps_after_resize_and_content_replace() {
+    let mut app = make_app_with_toc(300, 20, many_toc(20));
+    app.toc_list_area = Some(Rect::new(0, 0, 30, 5));
+    app.refresh_toc_cache();
+    app.scroll_toc_down(100, 5);
+    assert_eq!(app.toc_scroll(), 15);
+
+    app.clamp_toc_scroll(10);
+    assert_eq!(app.toc_scroll(), 10);
+
+    let (ss, theme) = test_assets();
+    let parsed = parse_markdown(
+        "# One\nbody\n# Two\nbody\n# Three\nbody\n",
+        &ss,
+        &theme,
+        &test_md_theme(),
+        false,
+        true,
+    );
+    app.replace_content(parsed);
+
+    assert_eq!(app.toc_scroll(), 0);
+}
+
+#[test]
+fn toc_scrollbar_click_maps_row_to_toc_scroll() {
+    let mut app = make_app_with_toc(300, 20, many_toc(20));
+    app.toc_list_area = Some(Rect::new(0, 0, 30, 5));
+    app.refresh_toc_cache();
+    app.scroll_to(10);
+
+    assert!(handle_mouse_event(
+        &mut app,
+        mouse(MouseEventKind::Down(MouseButton::Left), 29, 4)
+    ));
+
+    assert_eq!(app.toc_scroll(), app.max_toc_scroll(5));
+    assert_eq!(app.scroll(), 10);
+    assert!(app.toc_scrollbar_dragging);
+    assert!(!app.scrollbar_dragging);
+
+    assert!(!handle_mouse_event(
+        &mut app,
+        mouse(MouseEventKind::Up(MouseButton::Left), 29, 4)
+    ));
+    assert!(!app.toc_scrollbar_dragging);
 }

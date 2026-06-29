@@ -18,6 +18,9 @@ use syntect::{highlighting::ThemeSet, parsing::SyntaxSet};
 
 use keyboard::{handle_key_event, HandleResult};
 
+#[cfg(test)]
+pub(crate) use mouse::handle_mouse_event;
+
 const EDITOR_FLASH_DURATION: Duration = Duration::from_millis(FLASH_DURATION_MS);
 const WATCH_FLASH_DURATION: Duration = Duration::from_millis(FLASH_DURATION_MS);
 const CONFIG_FLASH_DURATION: Duration = Duration::from_millis(FLASH_DURATION_MS);

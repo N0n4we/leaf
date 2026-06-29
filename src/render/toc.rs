@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
     Frame,
 };
 
@@ -15,6 +15,8 @@ pub(super) fn render_toc_panel(f: &mut Frame, app: &mut App, area: Rect) {
         .constraints([Constraint::Length(3), Constraint::Min(0)])
         .split(area);
     app.toc_list_area = Some(toc_chunks[1]);
+    let list_height = toc_chunks[1].height as usize;
+    app.ensure_active_toc_visible(list_height);
 
     f.render_widget(
         Paragraph::new("")
@@ -28,12 +30,15 @@ pub(super) fn render_toc_panel(f: &mut Frame, app: &mut App, area: Rect) {
         toc_chunks[0],
     );
 
-    let mut lines: Vec<Line<'static>> = app.toc_display_lines().to_vec();
+    let toc_scroll = app.toc_scroll();
+    let mut lines: Vec<Line<'static>> = app.visible_toc_lines(list_height).to_vec();
     if let Some(display_idx) = app.hovered_toc_idx {
         let is_active = app.toc_display_entries().get(display_idx).copied() == app.toc_active_idx;
         if !is_active {
-            if let Some(line) = lines.get_mut(display_idx) {
-                apply_toc_hover_style(line, theme.ui.toc_hover_fg);
+            if let Some(visible_idx) = display_idx.checked_sub(toc_scroll) {
+                if let Some(line) = lines.get_mut(visible_idx) {
+                    apply_toc_hover_style(line, theme.ui.toc_hover_fg);
+                }
             }
         }
     }
@@ -48,6 +53,7 @@ pub(super) fn render_toc_panel(f: &mut Frame, app: &mut App, area: Rect) {
             ),
         toc_chunks[1],
     );
+    render_toc_scrollbar(f, app, toc_chunks[1], list_height);
     f.render_widget(
         Paragraph::new(vec![app.toc_header_line().clone()])
             .style(Style::default().bg(theme.ui.toc_bg)),
@@ -58,6 +64,46 @@ pub(super) fn render_toc_panel(f: &mut Frame, app: &mut App, area: Rect) {
             height: 1,
         },
     );
+}
+
+fn render_toc_scrollbar(f: &mut Frame, app: &App, area: Rect, list_height: usize) {
+    if !app.toc_is_overflowing(list_height) {
+        return;
+    }
+
+    let theme = app_theme();
+    let max_scroll = app.max_toc_scroll(list_height);
+    let (mouse_col, mouse_row) = app.mouse_position;
+    let on_scrollbar = is_on_toc_scrollbar(area, mouse_col, mouse_row);
+    let track_len = area.height as usize;
+    let mouse_on_thumb = on_scrollbar && track_len > 0 && max_scroll > 0 && {
+        let thumb_size = (track_len * track_len / max_scroll).max(1).min(track_len);
+        let max_offset = track_len.saturating_sub(thumb_size);
+        let thumb_offset = app.toc_scroll() * max_offset / max_scroll;
+        let thumb_top = area.y as usize + thumb_offset;
+        let thumb_bottom = thumb_top + thumb_size;
+        let row = mouse_row as usize;
+        row >= thumb_top && row < thumb_bottom
+    };
+
+    let mut scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        .begin_symbol(None)
+        .end_symbol(None)
+        .track_symbol(Some("│"))
+        .thumb_symbol("█");
+    if mouse_on_thumb || app.toc_scrollbar_dragging {
+        scrollbar = scrollbar.thumb_style(Style::default().fg(theme.ui.scrollbar_hover));
+    }
+
+    let mut scrollbar_state = ScrollbarState::new(max_scroll).position(app.toc_scroll());
+    f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
+}
+
+fn is_on_toc_scrollbar(area: Rect, col: u16, row: u16) -> bool {
+    area.width > 0 && {
+        let sb_x = area.x + area.width - 1;
+        col == sb_x && row >= area.y && row < area.y + area.height
+    }
 }
 
 fn apply_toc_hover_style(line: &mut Line<'static>, hover_fg: Color) {

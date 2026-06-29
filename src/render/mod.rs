@@ -39,6 +39,8 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
         toc::render_toc_panel(f, app, ta);
     } else {
         app.toc_list_area = None;
+        app.hovered_toc_idx = None;
+        app.toc_scrollbar_dragging = false;
     }
 
     app.content_area = content_area;

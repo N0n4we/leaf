@@ -72,6 +72,7 @@ impl App {
             self.goto_line.target = Some(render_index);
             self.goto_line.error = false;
             let scroll_pos = render_index.saturating_sub(GOTO_LINE_CONTEXT_OFFSET);
+            self.enable_toc_active_follow();
             self.scroll = scroll_pos.min(self.max_scroll());
         } else {
             self.goto_line.error = true;

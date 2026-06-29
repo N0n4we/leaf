@@ -106,6 +106,8 @@ pub(crate) struct App {
     toc_display_lines: Vec<Line<'static>>,
     toc_display_entries: Vec<usize>,
     toc_header_line: Line<'static>,
+    toc_scroll: usize,
+    toc_follow_active: bool,
     pub(crate) toc_active_idx: Option<usize>,
     pub(crate) hovered_toc_idx: Option<usize>,
     status_line: Line<'static>,
@@ -122,6 +124,7 @@ pub(crate) struct App {
     pub(crate) toc_list_area: Option<Rect>,
     pub(crate) mouse_position: (u16, u16),
     pub(crate) scrollbar_dragging: bool,
+    pub(crate) toc_scrollbar_dragging: bool,
     pub(super) editor_config: Option<String>,
     pub(super) editor_flash: Option<(EditorFlash, Instant)>,
     watch_flash: Option<(WatchFlash, Instant)>,
@@ -235,6 +238,8 @@ impl App {
             toc_display_lines: Vec::new(),
             toc_display_entries: Vec::new(),
             toc_header_line: toc_header_line(),
+            toc_scroll: 0,
+            toc_follow_active: true,
             toc_active_idx: None,
             hovered_toc_idx: None,
             status_line: Line::default(),
@@ -272,6 +277,7 @@ impl App {
             toc_list_area: None,
             mouse_position: (0, 0),
             scrollbar_dragging: false,
+            toc_scrollbar_dragging: false,
             editor_config: None,
             editor_flash: None,
             watch_flash: None,
@@ -397,12 +403,16 @@ impl App {
             .map(|(idx, _, line)| (*idx, line))
     }
 
-    pub(crate) fn toc_display_lines(&self) -> &[Line<'static>] {
-        &self.toc_display_lines
-    }
-
     pub(crate) fn toc_display_entries(&self) -> &[usize] {
         &self.toc_display_entries
+    }
+
+    pub(crate) fn visible_toc_lines(&self, viewport_height: usize) -> &[Line<'static>] {
+        let start = self.toc_scroll.min(self.toc_display_lines.len());
+        let end = start
+            .saturating_add(viewport_height)
+            .min(self.toc_display_lines.len());
+        &self.toc_display_lines[start..end]
     }
 
     pub(super) fn visible_toc_entries(&self) -> impl Iterator<Item = (usize, &TocEntry, u8)> {
@@ -566,6 +576,11 @@ impl App {
         self.toc_display_lines.clear();
         self.toc_display_entries.clear();
         self.refresh_toc_cache();
+        if let Some(area) = self.toc_list_area {
+            self.clamp_toc_scroll(area.height as usize);
+        } else {
+            self.toc_scroll = self.toc_scroll.min(self.toc_display_entries.len());
+        }
         self.status_cache_key = None;
     }
 
